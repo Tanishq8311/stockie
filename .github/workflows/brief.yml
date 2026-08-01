@@ -43,11 +43,19 @@ jobs:
       # optional: with no key configured the brief still sends, using the
       # deterministic template. Skipped when there is no credential, so we don't
       # spend 20s installing a CLI that cannot authenticate.
-      - name: Install Claude Code
-        if: |
-          github.event.schedule != '40 1 * * 1-5' &&
-          (secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '')
-        run: npm install -g @anthropic-ai/claude-code
+      # The `secrets` context is not allowed in a step-level `if`, so the check
+      # happens in shell. Secrets may always be read into `env`.
+      - name: Install Claude Code (only if a credential exists)
+        if: github.event.schedule != '40 1 * * 1-5'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
+            npm install -g @anthropic-ai/claude-code
+          else
+            echo "No LLM credential set — skipping install; the brief will use the template."
+          fi
 
       # The 07:10 run only pings you to log in; the 08:20 run builds the brief.
       - name: Kite login nudge
@@ -60,11 +68,19 @@ jobs:
 
       - name: Build and send brief
         if: github.event.schedule != '40 1 * * 1-5'
+        # Flags are assembled in shell rather than in a ${{ }} expression: the
+        # `inputs` context only exists for workflow_dispatch, and this step also
+        # runs on schedule — the path where a failure would silently mean no
+        # brief at all.
         run: |
-          python -m stockie.main \
-            ${{ inputs.dry_run && '--dry-run' || '' }} \
-            ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+          ARGS=""
+          [ "$DRY_RUN" = "true" ] && ARGS="$ARGS --dry-run"
+          [ -n "$LIMIT" ] && ARGS="$ARGS --limit $LIMIT"
+          echo "running: python -m stockie.main $ARGS"
+          python -m stockie.main $ARGS
         env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          LIMIT: ${{ inputs.limit }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           KITE_API_KEY: ${{ secrets.KITE_API_KEY }}
