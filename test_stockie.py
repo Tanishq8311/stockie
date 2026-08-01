@@ -403,6 +403,49 @@ def test_send_charts_survives_dataframes_and_failures():
         data.prices = real_prices
 
 
+def test_date_is_indian_market_time_not_the_runner_clock():
+    # A brief built at 04:05 IST is 22:35 UTC the previous day. Using the
+    # runner's clock dated it a day behind and skewed every earnings countdown.
+    import datetime as _dt
+    assert data.IST.utcoffset(None) == _dt.timedelta(hours=5, minutes=30)
+    utc_now = _dt.datetime.now(_dt.timezone.utc)
+    assert data.today_ist() == utc_now.astimezone(data.IST).date()
+
+
+def test_junk_quote_pages_are_not_treated_as_news():
+    junk = [
+        "SBI Funds Mgt Share Price, Stock Price, Live BSE/NSE, Bids Offers. F&amp;O Quotes",
+        "Price to earnings forward of Bajaj Housing Finance Ltd. - NSE:BAJAJHFL",
+        "ATHER ENERGY Share Price - Live NSE: ATHERENERG Stock Price &amp; Chart",
+    ]
+    real = [
+        "Bajaj Housing Finance shares down 53% from its peak; is it time to buy?",
+        "Five-Star Business Finance posts Rs271 crore PAT on record disbursements",
+        "Buy Acme Solar Holdings; target of Rs 450: ICICI Securities",
+    ]
+    assert all(data._is_junk(t) for t in junk)
+    assert not any(data._is_junk(t) for t in real)
+
+
+def test_holdings_line_explains_why_it_says_sell():
+    # A TRIM whose only stated reason was "its price trend is not an exit
+    # signal" explained nothing about why to sell 583 shares.
+    out = brief.template({
+        "date": "2026-08-02",
+        "portfolio": {"summary": {"value": 150972, "pnl_pct": 9.16},
+                      "holdings": [{
+                          "symbol": "GOLDBEES", "qty": 906, "ltp": 117.11,
+                          "pnl_pct": 4.2,
+                          "review": {"call": "TRIM", "shares": 583, "pct": 64.3,
+                                     "action": "this fund is 70% of your portfolio",
+                                     "reasons": ["held as an allocation"]},
+                      }]},
+    })
+    assert "70% of your portfolio" in out, "the reason for selling is missing"
+    assert "leaves you 323 shares" in out, "should say what you are left with"
+    assert "redeploy" in out, "the 25% target assumes proceeds are redeployed"
+
+
 def test_ipo_skips_closed_issues():
     # Only open/upcoming issues are actionable; a listed one is history.
     assert "closed" not in ipo.LIVE_STATUSES and "listed" not in ipo.LIVE_STATUSES

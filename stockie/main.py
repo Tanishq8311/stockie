@@ -16,7 +16,8 @@ log = logging.getLogger("stockie")
 
 TOP_N = 10             # candidates that reach the brief
 NEWS_FOR_TOP = 6       # news lookups are ~1s each, so cap them
-EARNINGS_WARN_DAYS = 5 # flag a candidate reporting within this many days
+EARNINGS_WARN_DAYS = 5 # veto a candidate reporting within this many days
+EARNINGS_SOON_DAYS = 14 # only list earnings this close in "watch out"
 CHART_LIMIT = 5        # charts per brief — a decision aid, not a slideshow
 
 
@@ -97,7 +98,7 @@ def build_payload(limit: int | None = None, return_prices: bool = False):
     for row in cand_rows + reviewed:
         if row["symbol"] in earnings:
             row["earnings_date"] = earnings[row["symbol"]]
-            days = (dt.date.fromisoformat(earnings[row["symbol"]]) - dt.date.today()).days
+            days = (dt.date.fromisoformat(earnings[row["symbol"]]) - data.today_ist()).days
             row["days_to_earnings"] = days
             if days <= EARNINGS_WARN_DAYS:
                 row["earnings_warning"] = (
@@ -119,7 +120,7 @@ def build_payload(limit: int | None = None, return_prices: bool = False):
 
     news_for = [c["symbol"] for c in cand_rows[:NEWS_FOR_TOP]] + held
     payload = {
-        "date": dt.date.today().isoformat(),
+        "date": data.today_ist().isoformat(),
         "benchmarks": data.benchmarks(),
         "universe_scanned": len(price_data),
         "passed_liquidity_gate": len(scored),
@@ -128,7 +129,9 @@ def build_payload(limit: int | None = None, return_prices: bool = False):
         "candidates": cand_rows,
         "news": data.news(news_for, names),
         "market_news": data.market_news(),
-        "earnings_soon": earnings,
+        # Only what is actually imminent — a date 89 days out is noise.
+        "earnings_soon": {s: d for s, d in earnings.items()
+                          if (dt.date.fromisoformat(d) - data.today_ist()).days <= EARNINGS_SOON_DAYS},
         "ipo": ipo.upcoming(),
         "thresholds": {
             "min_turnover_cr": signals.MIN_TURNOVER_CR,
@@ -157,7 +160,7 @@ def main() -> int:
     if args.login_ping:
         return login_ping()
 
-    today = dt.date.today()
+    today = data.today_ist()
     if data.is_trading_holiday(today) and not args.force:
         log.info("%s is not a trading day — nothing to brief", today)
         return 0

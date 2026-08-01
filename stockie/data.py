@@ -9,6 +9,7 @@ import csv
 import datetime as dt
 import html
 import logging
+import re
 import time
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -56,6 +57,20 @@ def universe() -> dict[str, str]:
     for sym, underlying in etfs().items():
         out.setdefault(sym, f"{sym} ETF ({underlying})")
     return out
+
+
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+
+
+def today_ist() -> dt.date:
+    """Today in Indian market time, not the runner's clock.
+
+    GitHub Actions runs in UTC. A brief built at 04:05 IST is 22:35 UTC the
+    *previous* day, so `dt.date.today()` dated the brief a day behind — and the
+    same slip would let a Saturday-morning-IST run be treated as Friday, and
+    skew every days-to-earnings countdown.
+    """
+    return dt.datetime.now(IST).date()
 
 
 def is_trading_holiday(day: dt.date) -> bool:
@@ -181,7 +196,7 @@ def fundamentals(symbols: list[str]) -> dict[str, dict]:
 def earnings_dates(symbols: list[str]) -> dict[str, str]:
     """Next earnings date per ticker, for the 'don't buy into a result' flag."""
     out = {}
-    today = dt.date.today()
+    today = today_ist()
     for s in symbols:
         try:
             cal = yf.Ticker(f"{s}.NS").calendar or {}
@@ -206,6 +221,21 @@ def _html_safe(text: str) -> str:
     is already safe, so whatever it copies into its own HTML is safe too.
     """
     return html.escape(html.unescape(text or ""), quote=True)
+
+
+# Headlines that are really a broker's quote page, not news. These crowd out
+# genuine stories — "SBI Funds Mgt Share Price, Live BSE/NSE, Bids Offers,
+# Buy/Sell, F&O Quotes" carries no information at all.
+JUNK_HEADLINE = re.compile(
+    r"(share price[, ].*(live|bse/nse|quote)|stock price[, ].*live|"
+    r"bids offers|f&o quotes|option chain|price to earnings forward|"
+    r"share price\s*-\s*live|live nse:|technical analysis chart)",
+    re.I,
+)
+
+
+def _is_junk(title: str) -> bool:
+    return bool(JUNK_HEADLINE.search(html.unescape(title or "")))
 
 
 def _clean_name(name: str) -> str:
@@ -244,6 +274,8 @@ def news(symbols: list[str], names: dict[str, str]) -> dict[str, list[dict]]:
             when = dt.datetime(*published[:6], tzinfo=dt.timezone.utc) if published else None
             if when and when < cutoff:
                 continue
+            if _is_junk(entry.get("title", "")):
+                continue
             items.append({
                 "title": _html_safe(entry.get("title", "")),
                 "source": _html_safe(entry.get("source", {}).get("title", "")),
@@ -267,6 +299,8 @@ def market_news(limit: int = 8) -> list[dict]:
     for url in feeds:
         try:
             for entry in feedparser.parse(url).entries[:limit]:
+                if _is_junk(entry.get("title", "")):
+                    continue
                 items.append({
                     "title": _html_safe(entry.get("title", "")),
                     "link": _html_safe(entry.get("link", "")),

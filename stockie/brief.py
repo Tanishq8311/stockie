@@ -244,12 +244,26 @@ def template(payload: dict) -> str:
                       f"({s.get('pnl_pct', 0):+.2f}%)"]
         for h in port["holdings"]:
             rv = h.get("review") or {}
-            howmuch = (f" → sell {rv['shares']} of {h['qty']} ({rv['pct']:g}%)"
-                       if rv.get("shares") else "")
+            shares = rv.get("shares") or 0
+            howmuch = f" → sell {shares} of {h['qty']} ({rv.get('pct', 0):g}%)" if shares else ""
             lines.append(
                 f"<b>{rv.get('call', 'HOLD')}</b> {h['symbol']} "
-                f"{h['pnl_pct']:+.1f}%{howmuch} — {'; '.join(rv.get('reasons', [])[:2])}"
+                f"{h['pnl_pct']:+.1f}%{howmuch}"
             )
+            # `action` is the reason for the call. Printing only `reasons` left
+            # a TRIM explained by "its price trend is not an exit signal", which
+            # says nothing about why to sell 583 shares.
+            if rv.get("action") and rv["action"] != "keep holding":
+                lines.append(f"   ↳ {rv['action']}")
+            if shares:
+                left = h["qty"] - shares
+                lines.append(
+                    f"   ↳ leaves you {left} shares (~₹{left * h['ltp']:,.0f}). "
+                    "Assumes you redeploy the proceeds; if you hold the cash, "
+                    "your remaining stake is a bigger share of a smaller pot."
+                )
+            for reason in (rv.get("reasons") or [])[:2]:
+                lines.append(f"   • {reason}")
     elif payload.get("portfolio_skipped"):
         lines += ["", "<i>Portfolio skipped — no Kite login today.</i>"]
 
