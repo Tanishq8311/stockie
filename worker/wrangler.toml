@@ -2,8 +2,9 @@ name = "stockie-token"
 main = "kite-token.js"
 compatibility_date = "2025-01-01"
 
-# Create with: wrangler kv namespace create TOKENS
-# then paste the returned id below.
+# Each person needs their OWN KV namespace — this id is not shared.
+#   npx wrangler kv namespace create TOKENS
+# then paste the id it prints below, replacing the placeholder.
 [[kv_namespaces]]
 binding = "TOKENS"
-id = "ab2787d351c7493685e4f1ee0c5b9d9a"
+id = "PUT_YOUR_KV_NAMESPACE_ID_HERE"

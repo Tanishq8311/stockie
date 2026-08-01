@@ -7,6 +7,15 @@ touches them, and sends you one message before the 9:15 open.
 **It never places an order.** It hands you signals with the numbers attached so you can
 disagree with them.
 
+**→ [Run your own copy in 15 minutes](SETUP.md)** — everyone runs their own instance.
+Zerodha's free tier is single-user, so there is no shared bot to join, and your holdings
+never leave your own infrastructure.
+
+> **Not investment advice, and not a registered advisory service.** These are screens
+> built on hand-picked thresholds that have never been backtested. They tell you where to
+> look, not what to buy. Sharing generated buy/sell calls with other people may require
+> SEBI registration in India — see [SETUP.md](SETUP.md) for why everyone runs their own.
+>
 > These are screens, not advice. A hand-weighted score with no backtest is a way to
 > direct your attention, not an edge. Verify everything before you trade it.
 
