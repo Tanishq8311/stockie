@@ -21,11 +21,16 @@ CHART_LIMIT = 5        # charts per brief — a decision aid, not a slideshow
 
 
 def login_ping() -> int:
-    """Nudge you to tap the Kite login link so the brief can see your portfolio."""
+    """Nudge you to tap the Kite login link so the brief can see your portfolio.
+
+    No Kite configured is a perfectly valid state — the brief just runs without
+    the portfolio section. Exit clean rather than failing, so this cron does not
+    turn into a red run and a failure email every single weekday.
+    """
     url = portfolio.login_url()
     if not url:
-        log.error("KITE_API_KEY not set")
-        return 1
+        log.info("KITE_API_KEY not set — no portfolio to log in for, skipping ping")
+        return 0
     text = (
         "<b>🔑 Kite login</b>\n\n"
         f'<a href="{url}">Tap here to log in</a> — takes 5 seconds.\n\n'
