@@ -278,6 +278,8 @@ def verdict(m: dict, avg_price: float | None = None) -> tuple[str, list[str]]:
 MAX_POSITION_PCT = 25.0    # no single holding should dominate the portfolio
 TRIM_FRACTION = 0.33       # one problem -> take about a third off
 BIG_WIN_PCT = 50.0         # a position up this much is worth partially banking
+MIN_ACTIONABLE_VALUE = 2000.0  # rupees. Below this, Zerodha's ~Rs16 DP charge per
+                               # sale makes any rebalance uneconomic — say nothing
 
 
 def review(holding: dict, m: dict | None, fundamentals: dict | None,
@@ -296,12 +298,28 @@ def review(holding: dict, m: dict | None, fundamentals: dict | None,
     pnl_pct = holding.get("pnl_pct") or 0.0
     f = fundamentals or {}
 
-    if m is None:
-        return {"call": "HOLD", "shares": 0, "pct": 0.0,
-                "reasons": ["no price history available to judge this one"],
-                "basis": "insufficient data"}
-
     weight = (value / portfolio_value * 100) if portfolio_value else 0.0
+
+    def hold(reason: str, basis: str) -> dict:
+        """Every path must return the same keys — the brief reads them all."""
+        return {"call": "HOLD", "shares": 0, "pct": 0.0,
+                "weight_pct": round(weight, 1), "action": "keep holding",
+                "reasons": [reason], "basis": basis, "tax_note": None}
+
+    if m is None:
+        return hold("no price history available to judge this one",
+                    "insufficient data")
+
+    # A one-share leftover is not a position. Zerodha charges roughly Rs16 in
+    # DP fees per scrip you sell, so acting on a few hundred rupees costs a
+    # meaningful slice of the proceeds. Telling someone to "EXIT 1 share worth
+    # Rs86" is noise dressed up as advice.
+    if value < MIN_ACTIONABLE_VALUE:
+        return hold(
+            f"only Rs{value:,.0f} here — too small to act on, since the ~Rs16 "
+            "DP charge per sale would eat a real share of the proceeds",
+            "position too small to be worth a transaction",
+        )
 
     # --- ETFs are allocation decisions, not momentum trades ----------------
     # A gold or index ETF is held deliberately as a hedge or as broad market

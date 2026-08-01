@@ -308,6 +308,41 @@ def test_review_does_not_exit_an_etf_on_a_price_dip():
     assert big["call"] == "TRIM" and big["shares"] > 0
 
 
+def test_review_returns_the_same_keys_on_every_path():
+    """Real crash: SBIFUNDS had no price history and that path omitted
+    weight_pct, so reading the review blew up with a KeyError."""
+    needed = {"call", "shares", "pct", "weight_pct", "action", "reasons",
+              "basis", "tax_note"}
+    healthy = signals.metrics(frame(list(np.linspace(100, 130, 260)
+                                         + 3 * np.sin(np.arange(260) / 3))))
+    broken = signals.metrics(frame(list(np.linspace(200, 100, 260))))
+    cases = [
+        (_holding(100, 100, 130), healthy, {}, 1_000_000, False),   # hold
+        (_holding(100, 250, 100), broken, {}, 1_000_000, False),    # exit
+        (_holding(100, 100, 130), healthy, {}, 20_000, False),      # concentrated
+        (_holding(100, 90, 100), broken, None, 1_000_000, True),    # etf
+        (_holding(100, 90, 100), broken, None, 20_000, True),       # etf oversized
+        (_holding(10, 100, 100), None, {}, 1_000_000, False),       # no history
+        (_holding(1, 100, 86), healthy, {}, 1_000_000, False),      # tiny position
+    ]
+    for h, m, f, total, is_etf in cases:
+        r = signals.review(h, m, f, total, is_etf=is_etf)
+        assert needed <= set(r), f"missing {needed - set(r)} for {r.get('basis')}"
+
+
+def test_review_ignores_positions_too_small_to_trade():
+    # A 1-share leftover worth Rs86: Zerodha's ~Rs16 DP charge per sale would
+    # eat a fifth of the proceeds. Advising a trade there is noise.
+    broken = signals.metrics(frame(list(np.linspace(200, 100, 260))))
+    r = signals.review(_holding(1, 156, 86), broken, {}, 150_000)
+    assert r["call"] == "HOLD" and r["shares"] == 0, r
+    assert "too small" in " ".join(r["reasons"]).lower()
+
+    # The same broken chart on a real position must still say EXIT.
+    big = signals.review(_holding(500, 156, 86), broken, {}, 150_000)
+    assert big["call"] == "EXIT" and big["shares"] == 500
+
+
 def test_review_flags_tax_whenever_it_says_sell():
     broken = signals.metrics(frame(list(np.linspace(200, 100, 260))))
     r = signals.review(_holding(100, 250, 100), broken, {}, 1_000_000)
