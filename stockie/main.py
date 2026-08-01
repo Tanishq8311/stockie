@@ -1,7 +1,7 @@
 """Entry point. Two modes: the morning login ping, and the pre-market brief.
 
-    python -m stockie.main --login-ping         # cron A, ~07:35 IST
-    python -m stockie.main                      # cron B, ~08:20 IST
+    python -m stockie.main --login-ping         # cron A, ~07:10 IST
+    python -m stockie.main                      # cron B, ~08:00 IST
     python -m stockie.main --dry-run --limit 50 # print to stdout, no Telegram
 """
 
@@ -29,7 +29,7 @@ def login_ping() -> int:
     text = (
         "<b>🔑 Kite login</b>\n\n"
         f'<a href="{url}">Tap here to log in</a> — takes 5 seconds.\n\n'
-        "<i>Zerodha expires the API token every morning. Tap before ~8:20am "
+        "<i>Zerodha expires the API token every morning. Tap before ~8:00am "
         "and today's brief includes your portfolio; miss it and you still get "
         "the market brief and ideas, just without holdings.</i>"
     )

@@ -6,10 +6,11 @@ on:
     # 10-30 min under load, so both are early enough that a late run still
     # lands before the 9:15 IST open.
     - cron: "40 1 * * 1-5"   # 07:10 IST — Kite login nudge
-    - cron: "50 2 * * 1-5"   # 08:20 IST — the brief
-    # ~70 minutes between the two, so a late tap still lands before the brief.
-    # Both are early enough that Actions' 10-30 min drift can't push the brief
-    # past the 09:15 IST open.
+    - cron: "30 2 * * 1-5"   # 08:00 IST — the brief
+    # 50 minutes between the two, so a late tap still lands before the brief.
+    # The brief is at 08:00 rather than later to survive Actions' scheduling
+    # delay: 5-30 min is routine and 60+ min happens under peak load, so an
+    # 08:20 slot could miss the 09:15 IST open entirely on a bad day.
   workflow_dispatch:
     inputs:
       dry_run:

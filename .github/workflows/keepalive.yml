@@ -1,0 +1,37 @@
+name: Keepalive
+
+# GitHub disables scheduled workflows in any repository with no activity for 60
+# days, and ONLY new commits reset that timer — not issues, releases or workflow
+# runs. The notification is a single email that is easy to miss, and there is no
+# banner in the Actions tab, so the failure is silent: the morning brief simply
+# stops arriving one day and nothing points at why.
+#
+# This commits a timestamp on the 1st of each month purely to keep the clock
+# reset. It exists to prevent that silent death, nothing more.
+
+on:
+  schedule:
+    - cron: "0 4 1 * *"      # 09:30 IST on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Commit a timestamp to reset the 60-day inactivity clock
+        run: |
+          date -u +"last keepalive: %Y-%m-%dT%H:%M:%SZ" > .keepalive
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .keepalive
+          if git diff --cached --quiet; then
+            echo "nothing changed — skipping commit"
+          else
+            git commit -m "chore: keepalive (prevents scheduled workflows being disabled)"
+            git push
+          fi

@@ -95,7 +95,7 @@ degrades to GMP and dates only.
 07:10 IST  cron ──► Telegram: "tap to log in to Kite"
               └─► you tap (phone) ──► Kite ──► Cloudflare Worker stores today's token
 
-08:20 IST  cron ──► screen 2,411 symbols ──► liquidity gate ──► score
+08:00 IST  cron ──► screen 2,411 symbols ──► liquidity gate ──► score
                     ──► fundamentals + news for the shortlist only
                     ──► Claude writes it ──► Telegram
 ```
@@ -108,12 +108,22 @@ nothing reads local disk.
 
 **One daily action, on your phone:** tap the 07:10 Kite login link. Zerodha expires the
 API token every morning around 06:00–07:30 IST — that's their security design, and there
-is no official way around it. You have ~70 minutes before the brief runs.
+is no official way around it. You have ~50 minutes before the brief runs.
 
 **Miss the tap and nothing breaks** — you get the market brief, ranked ideas, news and
 risk flags, just without the portfolio section. The Worker stamps each token with its
 trading day and refuses to serve a stale one, so "didn't log in today" never gets
 confused with a token Kite has already killed.
+
+**A keepalive workflow commits a timestamp monthly.** GitHub disables scheduled
+workflows after 60 days with no commits, and only commits reset that clock — the
+notification is one easy-to-miss email, so the brief would just stop arriving one day
+with nothing pointing at why. `.github/workflows/keepalive.yml` exists solely to prevent
+that.
+
+**Actions scheduling drifts.** 5-30 minutes is routine and 60+ happens under load, which
+is why the brief fires at 08:00 rather than 08:20 — it needs to clear the 09:15 open even
+on a bad morning.
 
 **The only thing that ever needs your Mac** is refreshing `data/nse_equity.csv` /
 `nse_etf.csv` — NSE blocks GitHub's datacenter IPs, so those are committed to the repo.
@@ -210,7 +220,7 @@ CLAUDE_CODE_OAUTH_TOKEN  WORKER_SHARED_SECRET
 ```
 
 `KITE_API_SECRET` goes only in the Worker, not here — the token exchange happens there so
-you can tap the link at 07:10 and still have a valid token at 08:20.
+you can tap the link at 07:10 and still have a valid token at 08:00.
 
 ## Local use
 
