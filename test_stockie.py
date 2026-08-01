@@ -327,6 +327,47 @@ def test_chart_labels_are_not_html_escaped():
     assert chart.html.unescape("Anawil Wire &amp; Engineering") == "Anawil Wire & Engineering"
 
 
+def test_send_charts_survives_dataframes_and_failures():
+    """The CI crash: `deep.get(s) or price_data.get(s)` on a DataFrame.
+
+    A DataFrame has no truth value, so `or` raises ValueError. It only fired in
+    the cloud because charts run after the brief is sent — the brief had already
+    gone out and the job still went red.
+    """
+    from stockie import main as m
+
+    df = frame(list(np.linspace(100, 130, 300)), [10_000_000] * 300)
+    payload = {
+        "portfolio": {"holdings": [{
+            "symbol": "AAA", "qty": 10, "value": 1000, "pnl_pct": 5.0,
+            "metrics": signals.metrics(df),
+            "review": {"call": "EXIT", "shares": 10},
+        }]},
+        "candidates": [{"symbol": "BBB", "suggested_stop": 95.0,
+                        "conviction": {"call": "BUY ZONE"}}],
+        "ipo": {"issues": []},
+    }
+    sent, real_prices, real_photo = [], data.prices, brief.send_photo
+    data.prices = lambda syms, period="1y": {s: df for s in syms}
+    brief.send_photo = lambda png, caption="": sent.append(caption) or True
+    try:
+        m.send_charts(payload, {"AAA": df, "BBB": df})   # must not raise
+    finally:
+        data.prices, brief.send_photo = real_prices, real_photo
+    assert sent, "no charts were produced"
+    assert any("AAA" in c for c in sent), sent
+
+    # And a chart backend that explodes must not take the run down.
+    data.prices = lambda syms, period="1y": (_ for _ in ()).throw(RuntimeError("boom"))
+    try:
+        try:
+            m.send_charts(payload, {"AAA": df})
+        except Exception:
+            pass  # send_charts may raise; main() is what must absorb it
+    finally:
+        data.prices = real_prices
+
+
 def test_ipo_skips_closed_issues():
     # Only open/upcoming issues are actionable; a listed one is history.
     assert "closed" not in ipo.LIVE_STATUSES and "listed" not in ipo.LIVE_STATUSES

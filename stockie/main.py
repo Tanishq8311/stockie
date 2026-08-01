@@ -171,7 +171,13 @@ def main() -> int:
 
     ok = brief.send(text)
     if not args.no_charts:
-        send_charts(payload, price_data)
+        # Charts are a bonus and run after the brief has already been sent.
+        # A rendering failure must not turn a successful morning into a red run
+        # — the exit code answers "did the brief arrive", nothing else.
+        try:
+            send_charts(payload, price_data)
+        except Exception:
+            log.exception("charts failed — the brief was still delivered")
     return 0 if ok else 1
 
 
@@ -231,7 +237,11 @@ def send_charts(payload: dict, price_data: dict) -> None:
     deep = data.prices([s for s, _, _ in targets], period="2y")
 
     for symbol, label, stop in targets:
-        df = deep.get(symbol) or price_data.get(symbol)
+        # Not `deep.get(s) or price_data.get(s)` — a DataFrame has no truth
+        # value, so `or` raises ValueError instead of falling through.
+        df = deep.get(symbol)
+        if df is None:
+            df = price_data.get(symbol)
         if df is None:
             continue
         png = chart.price_chart(symbol, df, label, stop)
@@ -243,7 +253,11 @@ def send_charts(payload: dict, price_data: dict) -> None:
     # week" — worth one extra image, not five.
     if targets:
         symbol, label, stop = targets[0]
-        df = deep.get(symbol) or price_data.get(symbol)
+        # Not `deep.get(s) or price_data.get(s)` — a DataFrame has no truth
+        # value, so `or` raises ValueError instead of falling through.
+        df = deep.get(symbol)
+        if df is None:
+            df = price_data.get(symbol)
         if df is not None:
             png = chart.candles(symbol, df, label, stop)
             if png:
