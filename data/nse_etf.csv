@@ -1,0 +1,337 @@
+symbol,underlying
+ABGSEC,Aditya Birla Sun Life CRISIL Broad Based Gilt ETF
+ABSL10BANK,BSE Top 10 Banks Index
+ABSLBANETF,NiftyBank
+ABSLLIQUID,AdityaBirlaSunLifeCRISILOvernightFundAIIndexETF
+ABSLMSCIN,MSCI India Index
+ABSLNN50ET,NiftyNext50
+ABSLPSE,AdityaBirlaSunLifeNiftyPSEETF
+ALPHA,NIFTYAlpha50Index
+ALPHAETF,MiraeAssetNifty200Alpha30ETF
+ALPL30IETF,NiftyAlphaLow-Volatility30Index
+AONEGOLD,Domestic price of Gold
+AONELIQUID,Nifty 1D Rate Index
+AONENIFTY,Nifty 50 Index
+AONESILVER,Domestic price of Silver
+AONETMMQ50,Nifty Total Market Momentum Quality 50 TRI
+AONETOTAL,Nifty Total Market Index
+AUTOBEES,NiftyAutoIndex
+AUTOIETF,NiftyAutoIndex
+BANK10ADD,BSE Top 10 Banks Index (TRI)
+BANK10BETF,Index
+BANKADD,DSPNiftyBankETF
+BANKBEES,NiftyBank
+BANKBETA,NiftyBankIndex
+BANKBETF,BajajFinservNiftyBankETF
+BANKETF,MiraeAssetNiftyBankETF
+BANKIETF,NiftyBankIndex
+BANKNIFTY1,NiftyBank
+BANKPSU,Nifty PSU Bank Total Return Index
+BBETF0432,NiftyBHARATBondIndex-April2032
+BBNPNBETF,Baroda BNP Paribas NIFTY Bank ETF
+BBNPPGOLD,BarodaBNPParibasGoldETF
+BFSI,NiftyFinancialServicesIndex
+BNKETFAXIS,NiftyBank
+BSE500IETF,S&PBSE500index
+BSLGOLDETF,Gold
+BSLNIFTY,Nifty50
+BSLSENETFG,BSESENSEXIndex
+CASHIETF,BSE Liquid Rate Index
+CEMNTGROWW,Nifty Cements Index TRI
+CHEMICAL,Nifty Chemicals Index (TRI)
+CHOICEGOLD,Gold
+COMMOIETF,ICICIPrudentialNiftyCommoditiesETF
+CONS,KotakNiftyIndiaConsumptionETF
+CONSUMAXIS,NIFTYIndiaConsumptionIndex
+CONSUMBEES,NiftyConsumption
+CONSUMER,Nifty India New Age Consumption
+CONSUMIETF,NiftyIndiaConsumptionIndex
+CPSEETF,NiftyCPSE
+DEFENCE,BSE India Defence
+DIVIDEND,BSE 500 Dividend Leaders
+DIVOPPBEES,NiftyDivOpps50
+EBANKNIFTY,Edelweiss Nifty Bank ETF
+EBBETF0430,NiftyBHARATBond
+EBBETF0431,NiftyBHARATBondIndex April2031
+EBBETF0433,BHARATBondETF-April2033
+ECAPINSURE,Edelweiss BSE Capital Markets & Insurance ETF
+EGOLD,EdelweissGoldETF
+ELIQUID,Nifty 1D Rate Index (Debt Index)
+ELM250,Nifty LargeMidcap 250 TRI
+EMETAL,Nifty Metal Total Return Index
+EMULTIMQ,Nifty500 Multicap Momentum Quality 50 Total Return Index
+ENERGY,Nifty Energy
+ENEXT50,Nifty Next 50 Total Return Index
+ENIFTY,Nifty 50 TRI
+EQUAL200,BSE 200 Equal Weight
+EQUAL50,Nifty50 Equal Weight
+EQUAL50ADD,NIFTY50EqualWeightIndex
+ESENSEX,BSE Sensex TRI
+ESG,Nifty100ESGSectorLeadersTotalReturnIndex
+ESILVER,EdelweissSilverETF
+EVIETF,Nifty EV & New Age Automotive Index
+EVINDIA,Nifty EV and New Age Automotive Total Return Index
+FINIETF,ICICIPrudentialNiftyFinancialServicesEx-BankETF
+FLEXIADD,Nifty500 Flexicap Quality 30 TRI
+FMCGADD,Nifty FMCG Index (TRI)
+FMCGIETF,NiftyFMCGIndex
+GILT10BETA,UTINifty10yrBenchmarkG-SecETF
+GILT5BETA,UTINifty5yrBenchmarkG-SecETF
+GILT5YBEES,Nifty5yrBenchmarkG-SecIndex
+GOLD1,Gold
+GOLD360,Commodity   Gold
+GOLDADD,DSPGOLDETF
+GOLDAXIS,Gold
+GOLDBEES,Gold
+GOLDBETA,Gold
+GOLDBND,Commodity - Gold
+GOLDCASE,ZerodhaGoldETF
+GOLDETF,MiraeAssetGoldETF
+GOLDIETF,Gold
+GROWWCAPM,Nifty Capital Markets Index
+GROWWCHEM,Nifty Chemicals Index - TRI
+GROWWDEFNC,Nifty India Defence Index- Total Return Inde
+GROWWEV,Groww Nifty EV & New Age Automotive ETF
+GROWWGOLD,Commodity
+GROWWHOSPI,BSE Hospitals Index
+GROWWLIQID,Nifty 1D Rate Index
+GROWWLOVOL,Nifty 500 Low Volatility 50 Index   TRI
+GROWWMC150,Nifty Midcap 150 Index - TRI
+GROWWMETAL,Nifty Metal Index
+GROWWMOM50,Nifty 500 Momentum 50 Index- Total Return Index
+GROWWN200,Nifty 200 Index- Total Return Index
+GROWWNET,Index
+GROWWNIFTY,Nifty 50 Index  - TRI
+GROWWNXT50,Index
+GROWWPOWER,BSE Power Index - TRI
+GROWWPSE,Nifty PSE Index � TRI
+GROWWPSUBK,Nifty PSU Bank Index - TRI
+GROWWRAIL,Nifty India Railways PSU Index
+GROWWRLTY,Index
+GROWWSC250,Nifty Smallcap 250 Index - TRI
+GROWWSLVR,Commodity-Silver
+GSEC10ABSL,CRISIL 10 Year Gilt ETF
+GSEC10IETF,ICICIPrudentialNifty10yrBenchmarkG-SecETF
+GSEC10YEAR,MiraeAssetNifty8-13YrG-SecETF
+GSEC5IETF,Nifty5yrBenchmarkG-SecIndex
+HDFCBSE500,HDFCS&PBSE500ETF
+HDFCGOLD,Gold
+HDFCGROWTH,HDFCNIFTYGrowthSectors15ETF
+HDFCLIQUID,HDFCNifty1DRateLiquidETF
+HDFCLOWVOL,HDFCNIFTY100LowVolatility30ETF
+HDFCMID150,HDFCNIFTYMidcap150ETF
+HDFCMOMENT,HDFCNIFTY200Momentum30ETF
+HDFCNEXT50,HDFCNIFTYNEXT50ETF
+HDFCNIF100,HDFCNIFTY100ETF
+HDFCNIFBAN,NIFTYBankIndex
+HDFCNIFIT,HDFCNIFTYITETF
+HDFCNIFTY,Nifty50
+HDFCNIMEG,Nifty Metal Index TRI
+HDFCPSUBK,HDFCNIFTYPSUBANKETF
+HDFCPVTBAN,HDFCNIFTYPrivateBankETF
+HDFCQUAL,HDFCNIFTY100Quality30ETF
+HDFCSENSEX,SENSEX
+HDFCSILVER,HDFCSilverETF
+HDFCSML250,HDFCNIFTYSmallcap250ETF
+HDFCVALUE,HDFCNIFTY50Value20ETF
+HEALTHADD,DSPNiftyHealthcareETF
+HEALTHAXIS,NiftyHealthcareIndex
+HEALTHCARE,Nifty 500 Healthcare Index
+HEALTHIETF,NiftyHealthcareIndex
+HEALTHY,NiftyHealthcareTRIIndex
+HNGSNGBEES,HangSengIndex
+HSBCGOLD,Commodity
+HYBRIDETF,Nifty200 Momentum 30 Plus 8-13 yr G-Sec 50:50 Total Return Index
+ICICIB22,S&PBSEBHARAT22index
+IDFNIFTYET,NIFTY50
+INFRA,Nifty�India�Infrastructure�&�Logistics
+INFRABEES,NiftyInfra
+INFRAIETF,ICICIPrudentialNiftyInfrastructureETF
+INTERNET,Equity Index
+IT,NIFTYITIndex
+ITADD,DSPNiftyITETF
+ITAXIS,NIFTYITIndex
+ITBEES,NiftyIT
+ITBETA,UTINiftyITETF
+ITETF,MiraeAssetNiftyITETF
+ITIETF,NIFTYITIndex
+IVZINGOLD,Gold
+IVZINNIFTY,Nifty50
+JUNIORBEES,Nippon India ETF Nifty Next 50 Junior BeES
+LICMFGOLD,Gold
+LICNETFGSC,GSEC10NSEIndex
+LICNETFN50,Nifty50
+LICNETFSEN,SENSEX
+LICNFNHGP,Nifty100
+LICNMID100,LICMFNiftyMidcap100ETF
+LIQGRWBEES,Liquid
+LIQUID,MiraeAssetNifty1DRateLiquidETF
+LIQUID1,KotakNifty1DRateLiquidETF
+LIQUIDADD,DSPS&PBSELiquidRateETF
+LIQUIDBEES,GovernmentSecurities
+LIQUIDBETA,Nifty 1D Rate Index
+LIQUIDBETF,BajajFinservNifty1DRateLiquidETF
+LIQUIDCASE,ZerodhaNifty1DRateLiquidETF
+LIQUIDETF,Nifty1Drateindex
+LIQUIDIETF,S&PBSELiquidRateIndex.
+LIQUIDPLUS,Nifty 1D Rate Index
+LIQUIDSBI,SBINIFTY1DRateETF
+LIQUIDSHRI,SHRIRAM NIFTY 1D RATE LIQUID ETF
+LOWVOL,MiraeAssetNifty100LowVolatility30ETF
+LOWVOL1,KotakNifty100LowVol30ETF
+LOWVOLIETF,Nifty100LowVolatility30Index
+LTGILTBEES,S&PBSEMidcapSelectIndex
+LTGILTCASE,Nifty 8-13 Yr G-Sec Index
+MAFANG,NYSEFANG+TotalReturnIndex
+MAHKTECH,HangSengTECHTotalReturnIndex
+MAKEINDIA,NiftyIndiaManufacturingTotalReturnIndex
+MANUFGBEES,Nifty India Manufacturing TRI
+MASPTOP50,S&P500Top50TotalReturnIndex
+METAL,Nifty Metal Total Return Index
+METALIETF,Nifty Metal Index
+MID150,Nifty Midcap 150 Index
+MID150BEES,NiftyMidcap150
+MID150CASE,ZerodhaNiftyMidcap150ETF
+MIDCAP,NiftyMidcap50Index
+MIDCAPADD,Nifty Midcap 150 Index
+MIDCAPBETA,UTINiftyMidcap150ExchangeTradedFund(ETF)
+MIDCAPETF,MiraeAssetMutualFund-MiraeAssetNiftyMidcap150ETF
+MIDCAPIETF,NiftyMidcap150
+MIDQ50ADD,NiftyMidcap150Quality50Index
+MIDSELIETF,NiftyGS813Yr
+MIDSMALL,MiraeAssetNiftyMidSmallcap400MomentumQuality100ETF
+MNC,KotakNiftyMNCETF
+MOALPHA50,Nifty Alpha 50 Total Return Index
+MOBANK10,BSE Top 10 Banks Total Return Index
+MOCAPITAL,Nifty Capital Market Total Return Index
+MODEFENCE,Nifty India Defence Total Return Index
+MOENERGY,Nifty Energy Index
+MOGOLD,Domestic Price of Physical Gold
+MOGSEC,Nifty5yrBenchmarkG-SecIndex
+MOHEALTH,MotilalOswalS&PBSEHealthcareETF
+MOINFRA,BSE India Infrastructure Total Return Index
+MOIPO,BSE Select IPO Total Return Index
+MOLOWVOL,NiftyMidcap100TRI
+MOM100,NiftyMidcap100Index
+MOM30IETF,ICICIPrudentialNifty200Momentum30ETF
+MOM50,Nifty50Index
+MOMENTUM,AdityaBirlaSunLifeNifty200Momentum30ETF
+MOMENTUM30,Nifty 200 Momentum 30 Index
+MOMENTUM50,Nifty 500 Momentum 50 Total Return Index
+MOMGF,Nifty India Manufacturing Total Return Index
+MOMIDMTM,Nifty Midcap 150 Momentum 50 Total Return Index
+MOMMIDCAP,BSE�Midcap�150�Momentum�30�TRI
+MOMNC,Nifty MNC ETF Total Return Index
+MOMOMENTUM,Nifty200Momentum30TotalReturnIndex
+MON100,NASDAQ-100Index
+MON50EQUAL,Nifty 50 Equal Weight Total Return Index
+MONEXT50,Nifty Next 50 Total Return Index
+MONIFTY100,Nifty 100 Total Return Index
+MONIFTY500,MotilalOswalNifty500ETF
+MONQ50,NasdaqQ-50TotalReturnIndex
+MOPSE,Nifty PSE Total Return Index
+MOQUALITY,MotilalOswalS&PBSEQualityETF
+MOREALTY,MotilalOswalNiftyRealtyETF
+MOSERVICE,Nifty Services Sector Total Return Index
+MOSILVER,Domestic Price of Physical Silver
+MOSMALL250,MotilalOswalNiftySmallcap250ETF
+MOTOUR,Nifty India Tourism Total Return Index
+MOVALUE,MotilalOswalS&PBSEEnhancedValueETF
+MSCI360,MSCI India Index
+MSCIADD,MSCI India Index
+MSCIINDIA,MSCI India Index
+MULTICAP,Nifty500 Multicap 50:25:25 Index
+NETF,TataNifty50ExchangeTradedFund
+NEXT30ADD,BSE SENSEX Next 30 Index
+NEXT50,NiftyNext50
+NEXT50ADD,Nifty Next 50 TRI
+NEXT50BETA,NiftyNext50
+NEXT50ETF,Nifty Next 50 Index
+NEXT50IETF,NiftyNext50
+NIF100BEES,Nifty100
+NIF100IETF,Nifty100
+NIFTY1,Nifty50
+NIFTY100EW,Nifty 100 Equal Weight Index
+NIFTYADD,Nifty50Index
+NIFTYAXIS,NIFTY50
+NIFTYBEES,Nifty50
+NIFTYBETA,Nifty50
+NIFTYBETF,BajajFinservNifty50ETF
+NIFTYCASE,Nifty Index 50 Index
+NIFTYETF,Nifty50
+NIFTYIETF,Nifty50
+NIFTYQLITY,AdityaBirlaSunLifeNifty200Quality30ETF
+NPBET,NiftyPrivateBankIndex
+NV20,Nifty50Value20
+NV20BEES,Nifty50Value20
+NV20IETF,Nifty50Value20
+OILIETF,Nifty Oil & Gas Index
+PHARMABEES,NIFTYPharmaIndex
+PSUBANK,NiftyPSUBank
+PSUBANKADD,DSPNiftyPSUBankETF
+PSUBNKBEES,NiftyPSUBank
+PSUBNKIETF,ICICIPrudentialNiftyPSUBankETF
+PVTBANIETF,NiftyPrivateBankIndex
+PVTBANK,Index
+PVTBANKADD,DSPNiftyPrivateBankETF
+PVTBKGROWW,Nifty Private Bank Index - TRI
+QGOLDHALF,Gold
+QNIFTY,Nifty50
+QUAL30IETF,ICICIPrudentialNifty200Quality30ETF
+QUALITY30,Nifty200 Quality 30 Index
+SBIBPB,BSE PSU Bank Index TRI
+SBIETFCON,NiftyIndiaConsumptionIndex
+SBIETFIT,NiftyITIndex
+SBIETFPB,NiftyPrivateBankIndex
+SBIETFQLTY,Nifty200Quality30Index
+SBILIQETF,Nifty 1D Rate Index
+SBIMIDMOM,Nifty Midcap 150 Momentum 50 Index
+SBINEQWETF,Nifty50 Equal Weight
+SBINMID150,Nifty Midcap 150 ETF
+SBISILVER,SBI SILVER ETF
+SBISMLETF,Nifty Smallcap 250 Index
+SBIVALETF,Nifty200 Value 30 Index
+SELECTIPO,BSE Select IPO Index
+SENSEXADD,DSPS&PBSESensexETF
+SENSEXAXIS,AXISS&PBSESENSEXETF
+SENSEXBETA,SENSEX
+SENSEXETF,MiraeAssetS&PBSESensexETF
+SENSEXIETF,SENSEX
+SETF10GILT,Nifty10yrBenchmarkG-SecIndex
+SETFGOLD,Gold
+SETFNIF50,Nifty50
+SETFNIFBK,NiftyNext50
+SETFNN50,NiftyBank
+SHARIABEES,Shariah
+SILVER,PhysicalpriceofSilver
+SILVER1,KotakSilverETF
+SILVER360,Commodity-Silver
+SILVERADD,DSPSilverETF
+SILVERAG,MiraeAssetSilverETF
+SILVERAXIS,AxisSilverETF
+SILVERBEES,NipponIndiaSilverETF
+SILVERBETA,UTISilverExchangeTradedFund(UTISilverETF)
+SILVERBND,Commodity - Silver
+SILVERCASE,Commodity-Silver
+SILVERIETF,DomesticPriceofSilver
+SMALL250,Nifty Smallcap 250
+SMALLADD,Nifty Smallcap 250 Index
+SMALLCAP,MiraeAssetNiftySmallcap250MomentumQuality100ETF
+SMALLGROWW,Nifty Smallcap 250 Momentum Quality 100 Index TRI
+SMALLIETF,Nifty Smallcap 250 Index
+SML100CASE,Nifty Smallcap 100 Index
+SNXT30BEES,BSE Sensex Next 30 Index
+SNXT50BETA,BSESensexNext50
+TATAGOLD,TataGoldExchangeTradedFund
+TATSILV,TataSilverExchangeTradedFund
+TECH,NiftyITTRIIndex
+TNIDETF,NiftyIndiaDigitalIndex
+TOP100CASE,ZerodhaNifty100ETF
+TOP10ADD,Nifty Top 10 Equal Weight Index
+TOP15IETF,Nifty Top 15 Equal Weight Index
+TOP20,Nifty Top 20 Equal Weight
+TWCGOLDETF,Commodity
+UNIONGOLD,Commodity Gold
+VAL30IETF,Nifty200 Value 30 Index
+VALUE,Nifty 500 Value 50
+VALUEAXIS,Nifty500 Value 50 TRI

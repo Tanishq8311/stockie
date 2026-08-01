@@ -1,0 +1,69 @@
+name: Pre-market brief
+
+on:
+  schedule:
+    # Times are UTC. IST = UTC+5:30. Actions cron is best-effort and drifts
+    # 10-30 min under load, so both are early enough that a late run still
+    # lands before the 9:15 IST open.
+    - cron: "40 1 * * 1-5"   # 07:10 IST — Kite login nudge
+    - cron: "50 2 * * 1-5"   # 08:20 IST — the brief
+    # ~70 minutes between the two, so a late tap still lands before the brief.
+    # Both are early enough that Actions' 10-30 min drift can't push the brief
+    # past the 09:15 IST open.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the brief in the log instead of sending it"
+        type: boolean
+        default: false
+      limit:
+        description: "Scan only the first N symbols (leave blank for all)"
+        type: string
+        default: ""
+
+concurrency:
+  group: stockie
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Claude Code writes the brief. It authenticates with CLAUDE_CODE_OAUTH_TOKEN
+      # (your subscription, via `claude setup-token`) — no metered API key needed.
+      - name: Install Claude Code
+        if: github.event.schedule != '40 1 * * 1-5'
+        run: npm install -g @anthropic-ai/claude-code
+
+      # The 07:10 run only pings you to log in; the 08:20 run builds the brief.
+      - name: Kite login nudge
+        if: github.event.schedule == '40 1 * * 1-5'
+        run: python -m stockie.main --login-ping
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KITE_API_KEY: ${{ secrets.KITE_API_KEY }}
+
+      - name: Build and send brief
+        if: github.event.schedule != '40 1 * * 1-5'
+        run: |
+          python -m stockie.main \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KITE_API_KEY: ${{ secrets.KITE_API_KEY }}
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

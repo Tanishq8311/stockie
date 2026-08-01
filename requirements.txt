@@ -1,0 +1,5 @@
+yfinance>=0.2.60
+pandas>=2.2
+requests>=2.32
+feedparser>=6.0
+matplotlib>=3.8
