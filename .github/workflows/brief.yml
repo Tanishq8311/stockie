@@ -77,9 +77,17 @@ jobs:
           ARGS=""
           [ "$DRY_RUN" = "true" ] && ARGS="$ARGS --dry-run"
           [ -n "$LIMIT" ] && ARGS="$ARGS --limit $LIMIT"
+          # A human pressing "Run workflow" wants output, even on a weekend or a
+          # market holiday. Scheduled runs keep the trading-day check, so the
+          # 08:00 cron stays quiet when the market is shut.
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            ARGS="$ARGS --force"
+            echo "manual run — forcing past the trading-day check"
+          fi
           echo "running: python -m stockie.main $ARGS"
           python -m stockie.main $ARGS
         env:
+          EVENT: ${{ github.event_name }}
           DRY_RUN: ${{ inputs.dry_run }}
           LIMIT: ${{ inputs.limit }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
