@@ -258,11 +258,19 @@ def template(payload: dict) -> str:
         for c in payload["candidates"]:
             f = c.get("fundamentals") or {}
             extra = f" | PE {f['pe']}" if f.get("pe") else ""
-            call = (c.get("conviction") or {}).get("call", "")
+            conv = c.get("conviction") or {}
+            sector = f.get("industry") or f.get("sector") or ""
             lines.append(
-                f"<b>{call}</b> {c['symbol']} ₹{c['close']} | RSI {c['rsi']} | "
-                f"3m {c['mom_3m_pct']:+.1f}% | stop ₹{c['suggested_stop']}{extra}"
+                f"<b>{conv.get('call', '')}</b> {c['symbol']}"
+                + (f" <i>({sector})</i>" if sector else "")
+                + f" — ₹{c['close']} | up {c['mom_3m_pct']:+.0f}% in 3 months | "
+                f"RSI {c['rsi']} | stop ₹{c['suggested_stop']}{extra}"
             )
+            # Without the LLM writing prose, the computed reason has to carry it.
+            if conv.get("basis"):
+                lines.append(f"   ↳ {conv['basis']}")
+            for neg in (conv.get("negatives") or [])[:2]:
+                lines.append(f"   • {neg}")
             if c.get("earnings_warning"):
                 lines.append(f"   ⚠️ {c['earnings_warning']}")
 
@@ -294,7 +302,29 @@ def template(payload: dict) -> str:
             f"{s} {d}" for s, d in payload["earnings_soon"].items()
         )]
 
-    lines += ["", "<i>Screens, not advice. Verify before you trade.</i>"]
+    # The LLM normally explains each term in context. Without it, the brief has
+    # to explain itself, or a new investor cannot act on any of this.
+    lines += [
+        "",
+        "<b>ℹ️ How to read this</b>",
+        "<b>BUY ZONE</b> trend and business both check out · "
+        "<b>WATCH</b> mixed picture · "
+        "<b>WAIT</b> results due within days · "
+        "<b>AVOID</b> too many negatives",
+        "<b>HOLD / TRIM / EXIT</b> — what to do with something you already own. "
+        "TRIM and EXIT come with the number of shares to sell.",
+        "<b>RSI</b> — momentum from 0 to 100. Above 70 means it has run hot and "
+        "buyers may be tiring; around 50-60 is healthy.",
+        "<b>PE</b> — share price divided by yearly profit per share. Higher means "
+        "more future growth is already priced in, so there is less room for error.",
+        "<b>stop</b> — the price at which the idea has stopped working and you would "
+        "cut the loss. Calculated from how much the stock normally swings, not a forecast.",
+        "<b>GMP</b> — grey market premium. An unofficial price some dealers quote "
+        "before an IPO lists. Unregulated and easily manipulated: treat it as gossip, "
+        "not valuation. Subscription figures from the exchange matter far more.",
+        "",
+        "<i>Screens, not advice. Verify before you trade.</i>",
+    ]
     return "\n".join(lines)
 
 

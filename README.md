@@ -145,6 +145,13 @@ Two constraints drove the design:
 | Kite Connect *Personal* | free — holdings, no market data needed |
 | Claude | **₹0 extra** — uses your existing Claude subscription, not a metered API key |
 
+**The written brief is optional.** With no key configured, the deterministic template
+sends instead — every computed call, share count, number, IPO verdict and news link, plus
+a plain-English legend explaining each term. Set `ANTHROPIC_API_KEY` *or*
+`CLAUDE_CODE_OAUTH_TOKEN` any time and the prose turns on with no code change. Note
+`claude setup-token` needs a **Pro or Max** plan — Team and Enterprise seats cannot mint
+one, so use an API key there.
+
 **Total: ₹0/month on top of what you already pay.** The brief is written by Claude Code
 in headless mode (`claude -p`), authenticated with a long-lived subscription token from
 `claude setup-token`. One short call per weekday is negligible against subscription

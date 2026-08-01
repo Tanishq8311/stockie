@@ -243,6 +243,19 @@ def test_conviction_avoids_on_stacked_negatives():
     assert len(v["negatives"]) >= 3
 
 
+def test_conviction_caps_on_one_extreme_metric():
+    # Real ACMESOLAR case: debt at 393% of equity was passing as BUY ZONE
+    # because it counted as a single caveat. Severity has to matter.
+    row = {"rsi": 48, "pos_52w_pct": 60}
+    v = signals.conviction(row, {"pe": 37, "debt_to_equity": 393, "earnings_growth": 20})
+    assert v["call"] == "WATCH", v
+    assert v["serious"], "extreme debt should be flagged as serious"
+
+    # Just over the threshold is still only a caveat, not a veto.
+    mild = signals.conviction(row, {"pe": 37, "debt_to_equity": 160, "earnings_growth": 20})
+    assert mild["call"] == "BUY ZONE", mild
+
+
 def test_conviction_buys_when_clean():
     row = {"rsi": 55, "pos_52w_pct": 70}
     v = signals.conviction(row, {"pe": 22, "debt_to_equity": 30, "earnings_growth": 18})

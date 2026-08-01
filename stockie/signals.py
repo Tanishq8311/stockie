@@ -208,8 +208,21 @@ def conviction(row: dict, fundamentals: dict | None = None) -> dict:
     if row.get("pos_52w_pct", 0) >= 99:
         bad.append("sitting exactly at its one-year high, so no cushion")
 
-    if len(bad) >= 3:
+    # Counting negatives alone treats "slightly over the line" the same as
+    # "wildly over it" — debt at 393% of equity would pass as a single caveat.
+    # Anything this far past a threshold caps the call on its own.
+    extreme = []
+    if pe is not None and pe > PE_RICH * 2:
+        extreme.append(f"price is {pe:g} times earnings — extremely expensive")
+    if de is not None and de > DE_HEAVY * 2:
+        extreme.append(f"debt is {de:g}% of shareholders' money — very heavily borrowed")
+    if growth is not None and growth < -25:
+        extreme.append(f"earnings shrinking sharply, down {abs(growth):g}%")
+
+    if len(bad) >= 3 or len(extreme) >= 2:
         call, basis = "AVOID", "too many negatives to act on"
+    elif extreme:
+        call, basis = "WATCH", f"one serious problem: {extreme[0]}"
     elif not bad:
         call, basis = "BUY ZONE", "trend and business both check out"
     elif len(bad) == 1 and good:
@@ -217,7 +230,8 @@ def conviction(row: dict, fundamentals: dict | None = None) -> dict:
     else:
         call, basis = "WATCH", "mixed picture"
 
-    return {"call": call, "basis": basis, "positives": good, "negatives": bad}
+    return {"call": call, "basis": basis, "positives": good, "negatives": bad,
+            "serious": extreme}
 
 
 def verdict(m: dict, avg_price: float | None = None) -> tuple[str, list[str]]:
