@@ -151,6 +151,7 @@ def main() -> int:
     p.add_argument("--limit", type=int, help="scan only the first N symbols (for testing)")
     p.add_argument("--force", action="store_true", help="run even on a market holiday")
     p.add_argument("--no-charts", action="store_true", help="skip the chart images")
+    p.add_argument("--chart", metavar="SYMBOL", help="send charts for one symbol and exit")
     args = p.parse_args()
 
     logging.basicConfig(
@@ -159,6 +160,10 @@ def main() -> int:
 
     if args.login_ping:
         return login_ping()
+
+    # On-demand single chart: no screen, no holiday check — you asked for it.
+    if args.chart:
+        return send_one_chart(args.chart)
 
     today = data.today_ist()
     if data.is_trading_holiday(today) and not args.force:
@@ -182,6 +187,49 @@ def main() -> int:
         except Exception:
             log.exception("charts failed — the brief was still delivered")
     return 0 if ok else 1
+
+
+def send_one_chart(symbol: str) -> int:
+    """Chart a single symbol on demand — what `/chart RELIANCE` runs.
+
+    Deliberately does not run the screen: this answers "show me this stock",
+    not "what should I buy", and a full scan would take minutes for one image.
+    """
+    from . import chart
+
+    symbol = symbol.strip().upper()
+    px = data.prices([symbol], period="2y")
+    if symbol not in px:
+        brief.send(f"No price history for <b>{symbol}</b>. Check the NSE symbol spelling.")
+        return 0
+
+    df = px[symbol]
+    m = signals.metrics(df)
+    if m is None:
+        brief.send(f"<b>{symbol}</b> has under 200 days of history — too new to judge.")
+        return 0
+
+    is_etf = symbol in data.etfs()
+    trend = ("above both its 50 and 200-day averages" if m["aligned"]
+             else "below its 200-day average" if not m["above_sma200"]
+             else "between its 50 and 200-day averages")
+    caption = (
+        f"<b>{symbol}</b> ₹{m['close']}\n"
+        f"{trend} · RSI {m['rsi']} of 100 · "
+        f"{m['mom_3m_pct']:+.0f}% in 3 months · {m['pos_52w_pct']:.0f}% of its 1-year range\n"
+        f"Suggested stop if buying: ₹{m['suggested_stop']} · "
+        f"trailing stop if holding: ₹{m['trail_stop']}"
+    )
+    if is_etf:
+        caption += "\n<i>This is a fund, held as an allocation — trend is not an exit signal.</i>"
+
+    png = chart.price_chart(symbol, df, "", m["suggested_stop"])
+    if png:
+        brief.send_photo(png, caption)
+    candles = chart.candles(symbol, df, "", m["suggested_stop"])
+    if candles:
+        brief.send_photo(candles, f"<b>{symbol}</b> — recent daily candles")
+    return 0
 
 
 def send_charts(payload: dict, price_data: dict) -> None:

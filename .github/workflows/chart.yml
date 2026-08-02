@@ -1,0 +1,35 @@
+name: On-demand chart
+
+# Answers /chart SYMBOL from Telegram. Separate from the brief on purpose: this
+# fetches one symbol and renders two images, so it finishes in about a minute
+# instead of the three-plus a full 2,400-symbol scan takes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "NSE symbol, e.g. RELIANCE"
+        required: true
+        type: string
+
+concurrency:
+  group: stockie-chart-${{ inputs.symbol }}
+  cancel-in-progress: true
+
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Render and send
+        env:
+          SYMBOL: ${{ inputs.symbol }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m stockie.main --chart "$SYMBOL"

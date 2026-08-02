@@ -18,6 +18,8 @@ const KITE_API = "https://api.kite.trade";
 const HELP = `<b>Stockie commands</b>
 
 /portfolio — your holdings now, with weights and P&amp;L
+/chart SYMBOL — price chart + candles, e.g. /chart RELIANCE
+/brief — run the full brief now
 /ipo — open and upcoming IPOs with the computed call
 /login — fresh Kite login link
 /status — is today's Kite token still valid
@@ -144,6 +146,43 @@ async function cmdIpo(env) {
     + `The 08:00 brief adds exchange subscription figures and an apply/avoid call, which matter far more.</i>`;
 }
 
+// GitHub Actions is where pandas lives, so anything needing moving averages
+// gets dispatched there and answers in a couple of minutes. Needs a fine-grained
+// PAT with Actions: read+write on the repo, stored as GITHUB_TOKEN.
+async function dispatch(env, workflow, inputs = {}) {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+    return "That needs GITHUB_TOKEN and GITHUB_REPO set on the Worker — see SETUP.md.";
+  }
+  const res = await fetch(
+    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "stockie-worker",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ ref: "main", inputs }),
+    },
+  );
+  if (res.status === 204) return null;          // queued; the run will message you
+  const detail = await res.text();
+  return `GitHub refused (${res.status}): ${esc(detail.slice(0, 200))}`;
+}
+
+async function cmdChart(env, arg) {
+  const symbol = (arg || "").trim().toUpperCase().replace(/[^A-Z0-9&-]/g, "");
+  if (!symbol) return "Give me a symbol — e.g. <code>/chart RELIANCE</code>";
+  const err = await dispatch(env, "chart.yml", { symbol });
+  return err || `📈 Charting <b>${esc(symbol)}</b> — about a minute.`;
+}
+
+async function cmdBrief(env) {
+  const err = await dispatch(env, "brief.yml", {});
+  return err || "📊 Running the full brief — about three minutes.";
+}
+
 export async function handleTelegram(request, env, tradingDay) {
   // Telegram echoes this header back; without it anyone who guesses the URL
   // could drive the bot.
@@ -161,7 +200,8 @@ export async function handleTelegram(request, env, tradingDay) {
     return new Response("ok");
   }
 
-  const cmd = (msg.text || "").trim().split(/\s+/)[0].split("@")[0].toLowerCase();
+  const parts = (msg.text || "").trim().split(/\s+/);
+  const cmd = parts[0].split("@")[0].toLowerCase();
   let reply;
   try {
     switch (cmd) {
@@ -171,6 +211,8 @@ export async function handleTelegram(request, env, tradingDay) {
       case "/login":     reply = cmdLogin(env); break;
       case "/portfolio": reply = await cmdPortfolio(env, tradingDay); break;
       case "/ipo":       reply = await cmdIpo(env); break;
+      case "/chart":     reply = await cmdChart(env, parts[1]); break;
+      case "/brief":     reply = await cmdBrief(env); break;
       default:
         reply = cmd.startsWith("/")
           ? `Don't know <code>${esc(cmd)}</code>. Try /help.`
