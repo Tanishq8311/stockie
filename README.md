@@ -1,324 +1,278 @@
 # Stockie
 
-A pre-market Telegram brief for Indian equities. Every weekday around 08:20 IST it
-screens all ~2,400 NSE symbols (stocks **and** ETFs), reviews your Zerodha holdings, pulls the news that
-touches them, and sends you one message before the 9:15 open.
+**A pre-market research analyst that runs itself, costs nothing, and shows its working.**
 
-**It never places an order.** It hands you signals with the numbers attached so you can
-disagree with them.
+Every weekday at 08:00 IST — 75 minutes before the NSE opens — Stockie screens all 2,411
+listed NSE symbols, reviews my Zerodha portfolio, tracks live IPO demand, and sends one
+plain-English brief to Telegram with charts attached.
 
-**→ [Run your own copy in 15 minutes](SETUP.md)** — everyone runs their own instance.
-Zerodha's free tier is single-user, so there is no shared bot to join, and your holdings
-never leave your own infrastructure.
-
-> **Not investment advice, and not a registered advisory service.** These are screens
-> built on hand-picked thresholds that have never been backtested. They tell you where to
-> look, not what to buy. Sharing generated buy/sell calls with other people may require
-> SEBI registration in India — see [SETUP.md](SETUP.md) for why everyone runs their own.
->
-> These are screens, not advice. A hand-weighted score with no backtest is a way to
-> direct your attention, not an edge. Verify everything before you trade it.
-
-## What arrives
+No server. No laptop. No API bill.
 
 ```
-📊 Market pulse      Nifty / Bank Nifty / India VIX and what today looks like
-💼 Your portfolio    per holding: HOLD / TRIM / EXIT, P&L, and why
-🎯 Ideas today       ranked candidates + entry zone + ATR stop
+📊 Market pulse      Nifty / Bank Nifty / India VIX, and what the mood implies
+💼 Your portfolio    HOLD / TRIM / EXIT — with the number of shares to sell
+🎯 Ideas today       BUY ZONE / WATCH / WAIT / AVOID, ranked, with entry and stop
 📰 News that matters filtered to your holdings and the shortlist
-🆕 IPOs              open + upcoming, GMP, live subscription, APPLY/AVOID call
-⚠️  Watch out        earnings in days, overbought names, IPOs closing, concentration
-📈 Charts            price + 50/200-day averages + stop, for anything needing a decision
+🆕 IPOs              APPLY / AVOID / WATCH from live exchange subscription data
+⚠️  Watch out        earnings within days, overbought names, concentration risk
+📈 Charts            price + moving averages + stop, candles, allocation, P&L
 ```
 
-Written for someone new to investing: no bare jargon, every term explained the first
-time, and what a number *means* before the number itself.
+---
 
-## The calls are computed, not written
+## The problem
 
-Every verdict is calculated in Python from named thresholds, then reported verbatim by
-the model. It cannot soften, hedge or override them — so the same numbers give the same
-answer every day, and you argue with constants instead of prose.
+I hold Indian equities and I am not a full-time trader. Every morning presented the same
+three failures:
 
-**Holdings** (`signals.review`) — **HOLD / TRIM / EXIT plus a share count.** Three
-independent inputs, because any one alone misleads:
+**Too much to read, too little time.** 2,000+ NSE stocks, an IPO calendar, portfolio
+news, results dates. The market opens at 09:15 and I have a job.
 
-| Input | Asks |
-|---|---|
-| The chart | is the trend broken (below 200-day average, below trailing stop) |
-| The business | earnings shrinking, debt heavy, still expensive |
-| Position size | how much of *your* money sits in this one name |
+**Advice everywhere, evidence nowhere.** Tip channels hand out "BUY XYZ 🚀" with no
+numbers behind it. Grey-market IPO premiums get quoted like gospel when they are
+unregulated rumour.
 
-A broken chart *and* a deteriorating business escalates TRIM to EXIT. A perfectly healthy
-stock is still trimmed if it exceeds `MAX_POSITION_PCT` of the portfolio — concentration
-is a risk no chart shows. Anything that says sell carries a tax note, because gains under
-12 months are taxed higher and Kite does not expose purchase dates.
+**Tools that say "reduce exposure" and stop there.** Knowing a position is too large is
+useless. *How many shares* is the actual decision.
 
-**ETFs are exempt from the exit rules.** A gold or index fund is an allocation, not a
-momentum trade. An early version told you to dump GOLDBEES because it slipped below its
-200-day average — precisely backwards, since that drawdown is what you hold gold for.
-ETFs now move only on position size.
+Stockie answers all three: **one message, every claim backed by a number, and every
+recommendation carrying a specific quantity.**
 
-**Candidates** (`signals.conviction`) — **BUY ZONE / WATCH / WAIT / AVOID** from
-valuation, debt, earnings growth, how hot RSI is, and whether it is pinned at its
-one-year high. A result due within days forces WAIT regardless of the chart.
+---
 
-**IPOs** (`ipo.verdict`) — **APPLY / AVOID / WATCH**, decided on the exchange
-subscription book. GMP only ever breaks a tie and can never turn an AVOID into an APPLY.
+## What makes it different
 
-News is handled deliberately differently: it is cross-checked against the computed call
-and any tension is *reported* — "a downgrade backs up this TRIM" — but never allowed to
-change the call. Letting a headline silently override the maths would make the calls
-unpredictable.
+### The calls are computed, not written
 
-## IPOs and GMP
+Every verdict is calculated in Python from named, inspectable thresholds — then reported
+**verbatim** by the language model, which is explicitly forbidden from softening or
+overriding them. The same numbers give the same answer every day, and you argue with
+constants rather than with prose.
 
-`stockie/ipo.py` layers three sources by how much they deserve to be trusted:
-
-| Source | Gives | Trust |
+| Decision | Function | Inputs |
 |---|---|---|
-| NSE `all-upcoming-issues` | symbol, price band, lot size, issue size, dates, mainboard/SME | official |
-| NSE `ipo-active-category` | **live subscription by category** (QIB / NII / Retail) | official |
-| ipowatch.in | grey-market premium + estimated listing gain | **unofficial** |
+| **Holdings** — HOLD / TRIM / EXIT **+ share count** | `signals.review` | chart, business fundamentals, position weight |
+| **Ideas** — BUY ZONE / WATCH / WAIT / AVOID | `signals.conviction` | valuation, debt, earnings growth, RSI, 52-week position |
+| **IPOs** — APPLY / AVOID / WATCH | `ipo.verdict` | exchange subscription book, board type, GMP as tiebreak only |
 
-**Subscription is the signal; GMP is the noise.** QIB demand matters most — institutions
-do diligence retail can't. A real example from the first live run: MV Electrosystems had
-GMP ₹133 rising and retail subscribed **39.8×**, while the QIB book sat at **0.91×**.
-Retail was piling into something institutions declined. GMP alone would have read as
-pure enthusiasm; the brief flagged the divergence and said don't chase it.
+The LLM is a **writer, not an analyst**. Every run is verified by extracting every number
+from the finished brief and checking it appears in the input payload. Last measured:
+**132 numbers, 0 fabricated.** With no model key configured, a deterministic template
+carries every call, number and a plain-English glossary — the bot never goes silent.
 
-**On GMP, plainly:** it's an informal, unregulated off-market quote. SEBI doesn't
-recognise it, volumes are thin, operators move it easily (worst in SME issues), and it
-can evaporate before listing. It correlates with listing-day pops historically, but it's
-a rumour price, not a valuation. The brief states it, never leads with it, and always
-attaches the caveat. SME issues are flagged as materially riskier than mainboard.
-
-NSE blocks datacenter IPs, so the two NSE calls go **direct** from a laptop and fall back
-to the Worker's `/nse` proxy from CI. That route is host-allowlisted to
-`www.nseindia.com` so it can't become an open proxy. If both paths fail the section
-degrades to GMP and dates only.
-
-## How it works
+### It answers "how much", not just "what"
 
 ```
-07:10 IST  cron ──► Telegram: "tap to log in to Kite"
-              └─► you tap (phone) ──► Kite ──► Cloudflare Worker stores today's token
-
-08:00 IST  cron ──► screen 2,411 symbols ──► liquidity gate ──► score
-                    ──► fundamentals + news for the shortlist only
-                    ──► Claude writes it ──► Telegram
+TRIM GOLDBEES +4.2% → sell 583 of 906 (64.3%)
+  ↳ this fund is 70% of your portfolio — larger than the 25% ceiling
+  ↳ leaves you 323 shares (~₹37,827). Assumes you redeploy the proceeds; if you
+    hold the cash, your remaining stake is a bigger share of a smaller pot.
 ```
 
-## Automation: your Mac stays off
+Three independent inputs, because any one alone misleads: **the chart** (is the trend
+broken), **the business** (earnings shrinking, debt heavy), and **position weight** (how
+much of your money sits in one name). A broken chart *and* a deteriorating business
+escalates TRIM to EXIT. A perfectly healthy stock is still trimmed if it dominates the
+portfolio — concentration is a risk no price chart shows.
 
-Everything runs on GitHub's runners and Cloudflare. No local process, no laptop, no
-always-on machine. All config arrives as environment variables from GitHub Secrets;
-nothing reads local disk.
+It also knows when to stay quiet: positions under ₹2,000 are left alone, because
+Zerodha's ~₹16 DP charge per sale would eat a fifth of the proceeds.
 
-**One daily action, on your phone:** tap the 07:10 Kite login link. Zerodha expires the
-API token every morning around 06:00–07:30 IST — that's their security design, and there
-is no official way around it. You have ~50 minutes before the brief runs.
+### It ranks exchange data above hype
 
-**Miss the tap and nothing breaks** — you get the market brief, ranked ideas, news and
-risk flags, just without the portfolio section. The Worker stamps each token with its
-trading day and refuses to serve a stale one, so "didn't log in today" never gets
-confused with a token Kite has already killed.
+Indian retail IPO decisions are driven by **grey market premium** — an unofficial,
+unregulated, easily-manipulated rumour price. Stockie reports GMP but never leads with it.
 
-**A keepalive workflow commits a timestamp monthly.** GitHub disables scheduled
-workflows after 60 days with no commits, and only commits reset that clock — the
-notification is one easy-to-miss email, so the brief would just stop arriving one day
-with nothing pointing at why. `.github/workflows/keepalive.yml` exists solely to prevent
-that.
+A real call from the first live run:
 
-**Actions scheduling drifts.** 5-30 minutes is routine and 60+ happens under load, which
-is why the brief fires at 08:00 rather than 08:20 — it needs to clear the 09:15 open even
-on a bad morning.
+> **MV Electrosystems — AVOID.** GMP ₹133 and rising, retail subscribed **39.76×** —
+> but the institutional book sat at **0.91×**. The investors with research teams were
+> not buying what the crowd was piling into.
 
-**The only thing that ever needs your Mac** is refreshing `data/nse_equity.csv` /
-`nse_etf.csv` — NSE blocks GitHub's datacenter IPs, so those are committed to the repo.
-They only change when stocks list or delist, so this is a once-every-few-months chore
-and never blocks a run.
+GMP alone reads as pure enthusiasm. Cross-referencing the exchange's own subscription
+data inverts the conclusion.
 
-Charts add matplotlib to the install (~20s in CI). Pass `--no-charts` to skip them.
+---
 
-Kite MCP is deliberately not used here: it needs an interactive browser login, so it
-can't run unattended. It's a good way to ask about your portfolio ad-hoc from a machine
-you're sitting at — just not part of this pipeline.
+## Architecture
 
-Stateless: every run pulls a fresh year of candles and throws it away. There is no
-database to maintain or corrupt.
+```
+07:10 IST  GitHub Actions ──► Telegram: "tap to log in to Kite"
+                └─► you tap (phone) ──► Kite OAuth ──► Cloudflare Worker stores token
 
-Two constraints drove the design:
+08:00 IST  GitHub Actions ──► 2,411 symbols from Yahoo (batched, ~90s)
+                          ──► liquidity gate ──► percentile-ranked score
+                          ──► fundamentals + news for the shortlist only
+                          ──► Kite holdings via the Worker
+                          ──► NSE IPO data via the Worker's proxy
+                          ──► brief + charts ──► Telegram
 
-- **Kite tokens expire daily ~06:00-07:30 IST**, and GitHub Actions has nothing listening for
-  the OAuth redirect. Hence the ~40-line Worker — it holds no logic, just the token.
-- **NSE's endpoints 403 GitHub Actions runners** (US datacenter IPs), so prices come from
-  Yahoo and the ticker lists are committed to `data/`.
+any time   Telegram ──► Cloudflare Worker ──► /portfolio /ipo /chart /brief /status
+```
+
+**Two constraints drove the whole design.**
+
+**Kite's API token expires every morning.** Zerodha invalidates it around 06:00 IST by
+design, and GitHub Actions has nothing listening for an OAuth redirect. Hence a ~150-line
+Cloudflare Worker that catches the redirect, exchanges the short-lived request token, and
+holds the result in KV — stamped with its trading day, so a dead token is never served as
+a live one.
+
+**NSE blocks datacenter IPs.** Official IPO calendars and subscription books 403 from
+GitHub's runners. Cloudflare's edge egresses from a different network, so the same Worker
+doubles as a host-allowlisted NSE proxy. That one reuse is what turns IPO calls from
+"WATCH, no data" into real APPLY/AVOID verdicts.
+
+**Stateless by design.** Every run pulls a fresh year of candles and throws it away. There
+is no database to maintain, migrate, or corrupt.
+
+---
+
+## Engineering decisions worth discussing
+
+Most of these came from reading real output, not from tests passing.
+
+**Percentile ranks, not z-scores.** The first scoring implementation put a microcap up
+**156% in three months at RSI 79** on ₹5cr turnover at the top of the buy list — a
+textbook blowoff top. A +156% move produces a z-score around +8, drowning out every other
+component including the overbought penalty. Percentile ranks are bounded and
+outlier-proof. Entry filters now also reject anything overbought, parabolic, or below its
+200-day average.
+
+**A liquidity gate that does more work than the scoring.** A 20-day median turnover floor
+of ₹25cr cuts 2,143 scored names to 472. Without it the screen surfaces beautiful charts
+on stocks you cannot get filled in.
+
+**ETFs are not stocks.** An early version told me to **EXIT my gold ETF** because it
+slipped below its 200-day average — precisely backwards, since that drawdown is what you
+hold gold *for*. ETFs are now judged on position size alone, never on trend, with a
+regression test pinning it.
+
+**A dead stop-loss check.** `close < close - 2×ATR` can never be true, so the holding stop
+was silently unreachable. Replaced with a trailing chandelier stop measured from the
+20-day high, which can actually be breached.
+
+**Severity has to be weighted.** Counting negatives treated "slightly over the line" the
+same as "wildly over it" — a stock with **debt at 393% of equity** passed as BUY ZONE on a
+single caveat. Anything far past a threshold now caps the call on its own.
+
+**Timezone correctness.** GitHub runners are UTC, so a brief built at 04:05 IST was
+stamped with the previous day — and the same slip would have let a Saturday-morning run be
+treated as Friday and skewed every earnings countdown.
+
+**Fail loudly, degrade gracefully.** No Kite token → market-only brief. No LLM key →
+deterministic template. A Yahoo batch that fails → those symbols drop and the run
+continues. Telegram rejects the HTML → resend as plain text, because a stray tag should
+never cost you the morning's brief. Charts crash → the brief has already been sent, so the
+exit code still reports success.
+
+**Escaping is a delivery bug, not a cosmetic one.** Headlines contain `&` ("F&O Talk",
+"Anawil Wire & Engineering"). Telegram's HTML parser rejects a bare ampersand with a 400,
+which would have killed the entire message. Normalised at the source, idempotently, so
+inconsistent feed escaping cannot break delivery.
+
+**Scheduling is a reliability problem.** GitHub disables scheduled workflows after 60 days
+without a commit — one easy-to-miss email, no banner, and the brief simply stops arriving.
+A monthly keepalive commit prevents it. The brief also fires at 08:00 rather than 08:20
+because Actions' scheduling drift is 5-30 minutes routinely and 60+ under load, which
+would push it past the open.
+
+## Testing
+
+**41 tests, no framework** — plain asserts, run with `python test_stockie.py`.
+
+They pin the things that would quietly cost money: indicator maths against hand-computed
+values, the liquidity gate dropping illiquid names, the anti-chase filter refusing a
+parabolic entry, EXIT selling the whole position while HOLD sells nothing, never selling
+more shares than held, ETFs surviving a price dip, tax notes appearing whenever a sale is
+advised, HTML escaping being idempotent, and the plain-text fallback firing on a 400.
+
+Each regression test names the real bug it came from.
+
+---
 
 ## Cost
 
 | | |
 |---|---|
-| GitHub Actions | free |
-| Cloudflare Worker + KV | free tier |
-| Kite Connect *Personal* | free — holdings, no market data needed |
-| Claude | **₹0 extra** — uses your existing Claude subscription, not a metered API key |
+| GitHub Actions | free — ~110 min/month against 2,000 |
+| Cloudflare Workers + KV | free tier |
+| Kite Connect *Personal* | free — holdings and orders |
+| Market data | free — Yahoo Finance, Google News RSS, NSE |
+| LLM | optional |
 
-**The written brief is optional.** With no key configured, the deterministic template
-sends instead — every computed call, share count, number, IPO verdict and news link, plus
-a plain-English legend explaining each term. Set `ANTHROPIC_API_KEY` *or*
-`CLAUDE_CODE_OAUTH_TOKEN` any time and the prose turns on with no code change. Note
-`claude setup-token` needs a **Pro or Max** plan — Team and Enterprise seats cannot mint
-one, so use an API key there.
+**₹0/month.** The written brief is the only optional paid piece; without a key the
+deterministic template ships every call, number and a glossary.
 
-**Total: ₹0/month on top of what you already pay.** The brief is written by Claude Code
-in headless mode (`claude -p`), authenticated with a long-lived subscription token from
-`claude setup-token`. One short call per weekday is negligible against subscription
-limits. If you'd rather use a metered API key, set `ANTHROPIC_API_KEY` instead — the CLI
-honours either, and no code changes.
+## Stack
 
-## Setup
+**Python** (pandas, yfinance, matplotlib, feedparser) · **Cloudflare Workers** (JS, KV) ·
+**GitHub Actions** · **Telegram Bot API** · **Kite Connect** · **Claude** (optional)
 
-### 1. Telegram
+No database. No server. No paid dependency.
 
-Message [@BotFather](https://t.me/botfather) → `/newbot` → copy the token. Then send your
-new bot any message and read your chat id:
+## Known limits
 
-```bash
-curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | grep -o '"id":[0-9-]*' | head -1
-```
+Stated plainly, because a screen that oversells itself is worse than no screen.
 
-### 2. Kite app
+- **The thresholds are judgment, not evidence.** Score weights, the 25% concentration
+  ceiling, trim fractions, IPO subscription bars — all hand-set from how these markets
+  generally behave, **none backtested**. They are named constants so they can be argued
+  with. A self-scoring job that grades the screen's own past calls is the highest-value
+  thing left to build; until then this directs attention, it does not claim an edge.
+- **GMP is scraped HTML.** If the source moves its table to JavaScript that section goes
+  empty. Exchange subscription data is unaffected.
+- **Fundamentals come from Yahoo**, occasionally stale for Indian midcaps. Treat PE and
+  ROE as a sanity filter, not gospel.
+- **Delivery %, FII/DII flows and bulk deals are missing** — all genuinely useful, all
+  NSE-only, and all recoverable through the Worker proxy.
+- **One human action per day.** Zerodha's token expiry cannot be automated away on the
+  free tier. Miss the tap and you get everything except holdings.
 
-At [developers.kite.trade](https://developers.kite.trade) create an app on the **Personal
-(free)** plan. Set the redirect URL to `https://<your-worker>.workers.dev/callback`
-(you get this in step 3). Note the API key and secret.
+> **Not investment advice.** These are screens on historical data, built by someone who is
+> not a registered adviser. They tell you where to look, not what to buy. Sharing
+> generated buy/sell calls with others may require SEBI registration in India — which is
+> why this is designed for one person to run their own instance.
 
-### 3. Cloudflare Worker
+---
 
-```bash
-cd worker
-npx wrangler kv namespace create TOKENS      # paste the id into wrangler.toml
-npx wrangler secret put KITE_API_KEY
-npx wrangler secret put KITE_API_SECRET
-npx wrangler secret put WORKER_SHARED_SECRET # any long random string
-npx wrangler deploy
-```
+## Run your own
 
-Then go back and set that `/callback` URL in your Kite app.
+**→ [SETUP.md](SETUP.md)** — 15 minutes. Steps 1-3 give a working brief with two secrets;
+the portfolio, the NSE proxy and the interactive commands are optional add-ons.
 
-### 4. Claude subscription token
-
-No API key needed — mint a long-lived token from your existing subscription:
-
-```bash
-claude setup-token          # opens a browser, prints a token
-```
-
-Copy the token; it becomes the `CLAUDE_CODE_OAUTH_TOKEN` secret below. Tokens expire
-eventually — when the brief starts arriving in its plain templated form, re-run this.
-
-### 5. GitHub secrets
-
-`Settings → Secrets and variables → Actions`:
-
-```
-TELEGRAM_BOT_TOKEN       TELEGRAM_CHAT_ID
-KITE_API_KEY             WORKER_URL             (https://<worker>.workers.dev)
-CLAUDE_CODE_OAUTH_TOKEN  WORKER_SHARED_SECRET
-```
-
-`KITE_API_SECRET` goes only in the Worker, not here — the token exchange happens there so
-you can tap the link at 07:10 and still have a valid token at 08:00.
-
-## Local use
-
-```bash
-python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
-
-.venv/bin/python test_stockie.py                         # indicator + verdict checks
-.venv/bin/python -m stockie.main --dry-run --limit 50    # fast, prints to stdout
-.venv/bin/python -m stockie.main --dry-run               # full scan, ~90s measured
-.venv/bin/python -m stockie.main                         # really send it
-```
-
-Needs Python 3.10+ (the type hints use `X | None`). Env vars are read from the shell, so
-`export TELEGRAM_BOT_TOKEN=…` before a real send. Add `--force` to run on a market holiday
-or a weekend, which the scheduler otherwise skips.
-
-Measured on a full run: 2,411 symbols → 2,143 with usable history → 472 past the liquidity
-gate → 10–12 candidates, in about 90 seconds with no rate limiting. 18 of those liquid names
-are ETFs.
-
-Locally the `claude` CLI uses whatever login you already have — nothing to configure.
-`STOCKIE_MODEL` picks the model (default `sonnet`).
-
-Everything degrades instead of failing: no Kite token → market-only brief; no `claude`
-on PATH, an expired token, or a timeout → deterministic templated brief; a Yahoo batch
-that fails → those symbols are dropped and the run continues.
-
-## Tuning
-
-All of it is at the top of `stockie/signals.py`:
-
-```python
-MIN_TURNOVER_CR   = 25.0   # liquidity floor — the most important filter here
-MAX_CHASE_3M_PCT  = 60.0   # never enter something already up this much in a quarter
-RSI_OVERBOUGHT    = 70     # too hot to open a new position
-TRAIL_ATR_MULT    = 3.0    # trailing stop width for holdings
-MAX_POSITION_PCT  = 25.0   # trim anything bigger than this share of the portfolio
-TRIM_FRACTION     = 0.33   # one problem -> take about a third off
-PE_RICH / DE_HEAVY         # what counts as expensive / over-levered
-WEIGHTS = {...}            # what the composite score rewards
-```
-
-IPO thresholds live at the top of `stockie/ipo.py` (`QIB_STRONG`, `TOTAL_STRONG`,
-`RETAIL_FRENZY`, `SME_QIB_STRONG`).
-
-Two of these do more work than the scoring:
-
-**The liquidity gate.** At ₹25cr it takes 2,143 scored names down to ~472. Lower it and the
-screen starts surfacing beautiful charts on stocks you cannot get filled in.
-
-**The anti-chase filters.** An early version of this scored with z-scores, and its top pick
-was a microcap up 156% in three months at RSI 79 on ₹5cr of turnover — a textbook blowoff
-top. The score now uses percentile ranks (bounded, outlier-proof) and `buy_candidates()`
-refuses to enter anything overbought, parabolic, or below its 200-DMA. If you loosen these,
-expect pump-and-dump names back at the top of your list.
+Everyone runs their own copy: Kite's free tier is single-user, holdings never leave your
+own infrastructure, and nobody is broadcasting stock calls to anyone else.
 
 ## Layout
 
 ```
-.github/workflows/brief.yml   both crons + manual dispatch
-worker/kite-token.js          OAuth catcher, ~40 lines, no logic
-data/nse_equity.csv           2,075 EQ-series stocks
-data/nse_etf.csv              336 ETFs (GOLDBEES, SILVERBEES, NIFTYBEES …)
-data/holidays.txt             refresh each December
-stockie/data.py               universe, prices, fundamentals, news
-stockie/ipo.py                IPO calendar, GMP, live subscription, apply/avoid call
-stockie/chart.py              price charts as PNGs
-stockie/signals.py            indicators + score + hold/trim/exit
-stockie/portfolio.py          Kite holdings (read-only)
-stockie/brief.py              Claude prompt (via `claude -p`) + Telegram send
-stockie/main.py               orchestration
-test_stockie.py               run it after touching signals.py
+stockie/signals.py    indicators, scoring, and every computed verdict
+stockie/data.py       universe, prices, fundamentals, news
+stockie/ipo.py        IPO calendar, GMP, subscription, apply/avoid
+stockie/chart.py      five chart types as PNGs
+stockie/portfolio.py  Kite holdings (read-only — never places an order)
+stockie/brief.py      prompt, deterministic template, Telegram delivery
+stockie/main.py       orchestration
+worker/               OAuth catcher, NSE proxy, Telegram commands
+test_stockie.py       41 checks
 ```
 
-## Known limits
+## Tuning
 
-- **Every threshold is judgment, not backtested.** The score weights, the 25%
-  concentration ceiling, the trim fractions, the IPO subscription bars — all hand-set
-  from how these markets generally behave. They are named constants so you can move
-  them, and the weekly scorecard job is what would tell you whether they work.
-- **The score is unvalidated.** Hand-picked weights, no backtest. The highest-value next
-  addition is a weekly job that scores its own past calls.
-- **Yahoo rate limits are undocumented** and tightened through 2025–26. Batched calls plus
-  backoff hold today; if that changes, the fix is a cache, not more threads.
-- **Fundamentals are Yahoo's**, which is occasionally stale or wrong for Indian midcaps.
-  Treat the PE/ROE figures as a sanity filter, not gospel.
-- **GMP is scraped HTML.** ipowatch is server-rendered today; if they move the table
-  to JavaScript the GMP section goes empty (the brief still runs). NSE's official
-  calendar and subscription data are unaffected.
-- **Delivery %, FII/DII flows and bulk deals are missing** — all genuinely useful, all
-  NSE-only, which is exactly what an Actions runner cannot fetch.
-- Personal-use tool. Don't redistribute the output as advice.
+Every threshold lives at the top of its module, named so you can disagree with it:
+
+```python
+# signals.py
+MIN_TURNOVER_CR      = 25.0   # liquidity floor — the most important filter here
+MAX_CHASE_3M_PCT     = 60.0   # never enter something already up this much in a quarter
+RSI_OVERBOUGHT       = 70     # too hot to open a new position
+MAX_POSITION_PCT     = 25.0   # trim anything larger than this share of the portfolio
+TRIM_FRACTION        = 0.33   # one problem -> take about a third off
+MIN_ACTIONABLE_VALUE = 2000   # below this, brokerage makes a trade pointless
+
+# ipo.py
+QIB_STRONG, TOTAL_STRONG, RETAIL_FRENZY, SME_QIB_STRONG
+```
+
+MIT licensed.
