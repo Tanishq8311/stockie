@@ -118,6 +118,23 @@ def build_payload(limit: int | None = None, return_prices: bool = False):
             is_etf=row.get("is_etf", False),
         )
 
+    # Flag issues whose application window shuts today or tomorrow — a closing
+    # date you notice the morning after is worthless.
+    ipo_data = ipo.upcoming()
+    _today = data.today_ist()
+    for issue in ipo_data.get("issues", []):
+        closes = (issue.get("official") or {}).get("closes")
+        iso = ipo.parse_nse_date(closes) if closes else None
+        if not iso:
+            continue
+        days = (iso - _today).days
+        issue["closes_on"] = iso.isoformat()
+        issue["days_left"] = days
+        if days == 0:
+            issue["deadline"] = "closes TODAY"
+        elif days == 1:
+            issue["deadline"] = "closes tomorrow"
+
     news_for = [c["symbol"] for c in cand_rows[:NEWS_FOR_TOP]] + held
     payload = {
         "date": data.today_ist().isoformat(),
@@ -132,7 +149,7 @@ def build_payload(limit: int | None = None, return_prices: bool = False):
         # Only what is actually imminent — a date 89 days out is noise.
         "earnings_soon": {s: d for s, d in earnings.items()
                           if (dt.date.fromisoformat(d) - data.today_ist()).days <= EARNINGS_SOON_DAYS},
-        "ipo": ipo.upcoming(),
+        "ipo": ipo_data,
         "thresholds": {
             "min_turnover_cr": signals.MIN_TURNOVER_CR,
             "entry_stop_atr_multiple": signals.STOP_ATR_MULT,

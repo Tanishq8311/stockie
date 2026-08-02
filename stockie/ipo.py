@@ -52,6 +52,14 @@ TIMEOUT = 25
 LIVE_STATUSES = {"open", "upcoming", "active", "forthcoming"}
 
 
+def parse_nse_date(s):
+    """NSE writes dates as "03-Aug-2026"."""
+    try:
+        return dt.datetime.strptime(str(s).strip(), "%d-%b-%Y").date()
+    except (ValueError, TypeError):
+        return None
+
+
 def _text(cell: str) -> str:
     """Strip tags and collapse whitespace, leaving the result HTML-safe.
 

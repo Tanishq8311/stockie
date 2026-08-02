@@ -47,8 +47,16 @@ const inr = (n) =>
 
 // Company names from third-party HTML can contain "&", which Telegram's HTML
 // parser rejects outright with a 400 — taking the whole reply down with it.
+const unesc = (s) =>
+  String(s ?? "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&nbsp;/g, " ");
+
+// Unescape first: scraped HTML arrives with "&amp;" already in it, and escaping
+// that again yields "&amp;amp;" — which Telegram renders literally. Doing both
+// makes this idempotent, so pre-escaped and raw input land in the same place.
 const esc = (s) =>
-  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  unesc(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 async function todaysToken(env, tradingDay) {
   const stored = await env.TOKENS.get("kite");
@@ -115,34 +123,146 @@ async function cmdPortfolio(env, tradingDay) {
     + `\n\n<i>Live prices and weights. Hold/trim/exit calls need the moving averages, so they come with the 08:00 brief.</i>`;
 }
 
+// Live subscription for one open issue, through the same NSE path the proxy
+// uses. This is the number that actually matters — GMP is a rumour.
+async function subscription(symbol) {
+  try {
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        + "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+      Accept: "application/json",
+      Referer: "https://www.nseindia.com/",
+    };
+    const warm = await fetch("https://www.nseindia.com/", { headers });
+    const cookie = (warm.headers.getAll
+      ? warm.headers.getAll("set-cookie")
+      : [warm.headers.get("set-cookie")].filter(Boolean)
+    ).map((c) => String(c).split(";")[0]).join("; ");
+    const res = await fetch(
+      `https://www.nseindia.com/api/ipo-active-category?symbol=${symbol}`,
+      { headers: { ...headers, cookie } });
+    if (!res.ok) return null;
+    const out = {};
+    for (const row of (await res.json())?.dataList || []) {
+      if (!row.category || row.category === "Category" || !row.noOfTotalMeant) continue;
+      out[row.category] = Number(row.noOfTotalMeant);
+    }
+    return out;
+  } catch { return null; }
+}
+
+// Plain IST calendar date — not tradingDay(), which is shifted to a 06:00
+// boundary for token expiry and would call an issue "closing today" a few
+// hours early.
+function istDate(now = Date.now()) {
+  return new Date(now + 5.5 * 3600_000).toISOString().slice(0, 10);
+}
+
+const MONTHS = { jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
+                 jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12" };
+
+// NSE gives "03-Aug-2026"; normalise so it can be compared to istDate().
+function nseDate(s) {
+  const m = /^(\d{2})-([A-Za-z]{3})-(\d{4})$/.exec(String(s || ""));
+  return m ? `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1]}` : null;
+}
+
+const dayName = (iso) =>
+  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(iso + "T00:00:00Z").getUTCDay()];
+
 async function cmdIpo(env) {
   const browser = {
     "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+      + "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
   };
   const res = await fetch(
     "https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/", { headers: browser });
   if (!res.ok) return "Couldn't reach the GMP source right now.";
 
-  const html = await res.text();
-  const table = html.slice(html.indexOf("<table"));
+  const table = (await res.text()).split("<table")[1] || "";
   const live = [];
   for (const row of table.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || []) {
-    const cells = [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)]
-      .map((m) => m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
-    if (cells.length < 8 || /^ipo name/i.test(cells[0])) continue;
-    if (!/^(open|upcoming)$/i.test(cells[7])) continue;
-    live.push({ name: cells[0], gmp: cells[1], band: cells[3], dates: cells[5], board: cells[6] });
+    const c = [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)]
+      .map((m) => unesc(m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()));
+    if (c.length < 8 || /^ipo name/i.test(c[0])) continue;
+    if (!/^(open|upcoming)$/i.test(c[7])) continue;
+    live.push({
+      name: c[0], gmp: parseFloat((c[1] || "").replace(/[^\d.]/g, "")) || 0,
+      band: c[3], dates: c[5], board: c[6], open: /^open$/i.test(c[7]),
+    });
   }
   if (!live.length) return "No open or upcoming IPOs right now.";
 
-  const lines = live.slice(0, 12).map(
-    (i) => `<b>${esc(i.name)}</b> — ${esc(i.board)} · band ${esc(i.band)} · ${esc(i.dates)} · GMP ${esc(i.gmp)}`);
+  // NSE's calendar carries exact open/close dates and the symbol needed for the
+  // subscription book. ipowatch only has a loose "30-3 August" string.
+  const cal = await fetch(
+    "https://www.nseindia.com/api/all-upcoming-issues?category=ipo",
+    { headers: { ...browser, Referer: "https://www.nseindia.com/" } })
+    .then((r) => (r.ok ? r.json() : [])).catch(() => []);
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const i of live) {
+    const hit = (Array.isArray(cal) ? cal : []).find(
+      (c) => norm(c.companyName).startsWith(norm(i.name).slice(0, 12)));
+    if (!hit) continue;
+    i.closes = nseDate(hit.issueEndDate);
+    i.opens = nseDate(hit.issueStartDate);
+    i.band = hit.priceBand || hit.issuePrice || i.band;
+    i.symbol = hit.symbol;
+  }
 
-  return `<b>🆕 IPOs</b>\n\n${lines.join("\n")}\n\n`
-    + `<i>GMP is an unofficial grey-market quote — gossip, not valuation. `
-    + `The 08:00 brief adds exchange subscription figures and an apply/avoid call, which matter far more.</i>`;
+  const today = istDate();
+  for (const i of live.filter((x) => x.open && x.symbol).slice(0, 4)) {
+    i.subs = await subscription(i.symbol);
+  }
+
+  const money = (i) => {
+    const bits = [];
+    if (i.gmp) bits.push(`GMP \u20b9${i.gmp}`);
+    const total = i.subs?.Total;
+    const qib = i.subs?.["Qualified Institutional Buyers(QIBs)"];
+    if (total != null) bits.push(`sub ${total.toFixed(2)}x`);
+    if (qib != null) bits.push(`QIB ${qib.toFixed(2)}x${qib < 1 ? " \u26A0\uFE0F" : ""}`);
+    return bits.length ? bits.join(" \u00b7 ") : "no demand quoted yet";
+  };
+  const when = (i) =>
+    i.opens && i.closes
+      ? `${i.opens.slice(8)}\u2013${i.closes.slice(8)} ${dayName(i.closes)}`
+      : esc(i.dates);
+
+  const closingToday = live.filter((i) => i.closes === today);
+  const openNow = live.filter((i) => i.open && i.closes !== today);
+  const soon = live.filter((i) => !i.open);
+  const out = [];
+
+  if (closingToday.length) {
+    out.push("<b>\u23F0 CLOSING TODAY</b> \u2014 last chance to apply");
+    for (const i of closingToday) {
+      out.push(`\u2022 <b>${esc(i.name)}</b> (${esc(i.board)}) \u00b7 ${esc(i.band)}`);
+      out.push(`  ${money(i)}`);
+    }
+    out.push("");
+  }
+  if (openNow.length) {
+    out.push("<b>\u{1F4C2} OPEN NOW</b>");
+    for (const i of openNow) {
+      out.push(`\u2022 <b>${esc(i.name)}</b> (${esc(i.board)}) \u00b7 closes ${when(i)}`);
+      out.push(`  ${esc(i.band)} \u00b7 ${money(i)}`);
+    }
+    out.push("");
+  }
+  if (soon.length) {
+    out.push("<b>\u{1F4C5} UPCOMING</b>");
+    for (const i of soon.slice(0, 8)) {
+      out.push(`\u2022 <b>${esc(i.name)}</b> (${esc(i.board)}) \u00b7 ${when(i)}`
+        + (i.gmp ? ` \u00b7 GMP \u20b9${i.gmp}` : ""));
+    }
+    out.push("");
+  }
+  out.push("<i>sub/QIB are exchange subscription figures \u2014 QIB under 1x means "
+    + "institutions passed, which matters far more than GMP. GMP is an unofficial "
+    + "grey-market rumour. The 08:00 brief adds an apply/avoid call.</i>");
+  return `<b>\u{1F195} IPOs</b>\n\n` + out.join("\n");
 }
 
 // --- /brief: the recovery path -------------------------------------------

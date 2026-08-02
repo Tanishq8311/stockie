@@ -254,185 +254,232 @@ def write(payload: dict) -> str:
 
 
 def _row(cells, widths) -> str:
-    """One fixed-width row for a <pre> table."""
     out = []
     for value, w in zip(cells, widths):
         s = str(value)
-        s = s[:w] if len(s) > w else s
-        out.append(s.rjust(w) if w < 0 else s.ljust(w))
+        out.append((s[:w] if len(s) > w else s).ljust(w))
     return " ".join(out).rstrip()
 
 
 def _table(header, rows, widths) -> str:
-    """Telegram has no <table>. A <pre> block is fixed-width, so columns line
-    up — but it never wraps, it scrolls sideways. Keep the total under ~34
-    characters or it becomes unreadable on a phone."""
+    """A <pre> block renders fixed-width, so columns line up.
+
+    Only used where a table loses nothing. The moment a row has more to say
+    than fits in ~34 characters, use prose instead — truncating context to keep
+    a tidy grid trades away the part that was worth reading.
+    """
     body = "\n".join([_row(header, widths)] + [_row(r, widths) for r in rows])
     return f"<pre>{html.escape(body)}</pre>"
 
 
-def _short(sym: str, n: int = 10) -> str:
-    return sym if len(sym) <= n else sym[: n - 1] + "\u2026"
-
-
 def template(payload: dict) -> str:
-    """Deterministic fallback. Tables for the scan, prose only where it earns
-    its place — the previous version buried three decisions in a wall of text."""
+    """Deterministic fallback. Complete first, compact second."""
     L = [f"<b>\U0001F4CA Stockie</b> \u00b7 {payload.get('date', '')}"]
 
+    # Index levels: three fields each, nothing omitted — a table fits perfectly.
     bm = payload.get("benchmarks") or {}
     if bm:
         L += ["", _table(
             ["", "LEVEL", "CHG"],
-            [[k.replace("India ", ""),
-              f"{v['level']:,.2f}" if v["level"] < 100 else f"{v['level']:,.0f}",
-              f"{v['change_pct']:+.2f}%"]
-             for k, v in bm.items()],
-            [10, 9, 7],
-        )]
+            [[k, f"{v['level']:,.2f}" if v["level"] < 100 else f"{v['level']:,.0f}",
+              f"{v['change_pct']:+.2f}%"] for k, v in bm.items()],
+            [10, 9, 7])]
 
-    # ---- portfolio -------------------------------------------------------
+    # ---- portfolio: every holding keeps its reasoning --------------------
     port = payload.get("portfolio") or {}
     if port.get("holdings"):
         s = port.get("summary", {})
         L += ["", f"<b>\U0001F4BC Portfolio</b> \u00b7 \u20b9{s.get('value',0):,.0f} "
-                  f"\u00b7 {s.get('pnl_pct',0):+.2f}%"]
-        rows, actions = [], []
-        for h in port["holdings"]:
+                  f"\u00b7 {s.get('pnl',0):+,.0f} ({s.get('pnl_pct',0):+.2f}%)", ""]
+        order = {"EXIT": 0, "TRIM": 1, "HOLD": 2}
+        for h in sorted(port["holdings"],
+                        key=lambda x: (order.get((x.get("review") or {}).get("call"), 3),
+                                       -x.get("value", 0))):
             rv = h.get("review") or {}
-            rows.append([rv.get("call", "HOLD"), _short(h["symbol"]),
-                         (f"{rv.get('weight_pct', 0):.0f}%"
-                          if rv.get("weight_pct", 0) >= 1 else "<1%"),
-                         f"{h['pnl_pct']:+.1f}%"])
+            L.append(f"<b>{rv.get('call','HOLD')} {h['symbol']}</b> \u00b7 "
+                     f"{rv.get('weight_pct',0):g}% of portfolio \u00b7 "
+                     f"{h.get('pnl_pct',0):+.1f}%"
+                     + (f" (\u20b9{h['pnl']:+,.0f})" if h.get("pnl") is not None else ""))
+            if h.get("avg_price") and h.get("ltp"):
+                L.append(f"  {h.get('qty',0)} sh \u00b7 avg \u20b9{h['avg_price']:,.2f} "
+                         f"\u00b7 now \u20b9{h['ltp']:,.2f} \u00b7 "
+                         f"worth \u20b9{h.get('value',0):,.0f}")
             if rv.get("shares"):
-                # Say what you are LEFT with, and that the target only holds if
-                # the proceeds go back to work. Without that the share count
-                # looks more precise than it is.
-                left = h["qty"] - rv["shares"]
-                actions.append(
-                    f"\u2192 <b>{h['symbol']}</b> \u2014 sell <b>{rv['shares']}</b> of "
-                    f"{h['qty']}, leaves you {left} shares (~\u20b9{left * h['ltp']:,.0f})"
-                    f"\n   <i>{html.escape(rv.get('action',''))}. "
-                    f"Hits the target only if you redeploy the proceeds.</i>")
-        L += [_table(["CALL", "STOCK", "WT", "P&L"], rows, [5, 10, 4, 7])]
-        # Only positions needing action get prose. HOLD explains itself.
-        L += actions
-
+                left = h.get("qty", 0) - rv["shares"]
+                L.append(f"  \u27a1\ufe0f <b>Sell {rv['shares']} of {h.get('qty',0)}</b>, "
+                         f"leaves {left} (~\u20b9{left * h.get('ltp', 0):,.0f}). "
+                         f"Reaches the target only if you redeploy the proceeds.")
+            for r in rv.get("reasons", []):
+                L.append(f"  \u2022 {html.escape(r)}")
+            if rv.get("action") and rv["action"] != "keep holding":
+                L.append(f"  \u2022 {html.escape(rv['action'])}")
+            if rv.get("tax_note"):
+                L.append(f"  \u2022 {html.escape(rv['tax_note'])}")
+            L.append("")
     elif payload.get("portfolio_skipped"):
         L += ["", "<i>No Kite login today, so holdings are missing. Tap /login, "
                   "then /brief for this report with them.</i>"]
 
-    # ---- ideas -----------------------------------------------------------
+    # ---- ideas: every candidate keeps its full case ----------------------
     cands = payload.get("candidates") or []
     if cands:
-        SHORT = {"BUY ZONE": "BUY", "WATCH": "WATCH", "WAIT": "WAIT", "AVOID": "AVOID"}
-        rows = [[SHORT.get((c.get("conviction") or {}).get("call", ""), "?"),
-                 _short(c["symbol"]), f"{c['close']:,.0f}", f"{c['rsi']:.0f}",
-                 f"{c['mom_3m_pct']:+.0f}%"] for c in cands]
-        L += ["", "<b>\U0001F3AF Ideas</b>", _table(
-            ["CALL", "STOCK", "PRICE", "RSI", "3M"], rows, [5, 10, 6, 3, 5])]
-        # Detail only for the ones actually worth acting on.
-        detailed = 0
+        L += ["", "<b>\U0001F3AF Ideas today</b>", ""]
         for c in cands:
             conv = c.get("conviction") or {}
-            if conv.get("call") != "BUY ZONE" and not c.get("earnings_warning"):
-                continue
-            if detailed >= 3 and not c.get("earnings_warning"):
-                continue          # the table already carries the rest
-            detailed += 1
             f = c.get("fundamentals") or {}
-            bits = [f"stop \u20b9{c['suggested_stop']:,.0f}"]
+            sector = f.get("industry") or f.get("sector") or ""
+            L.append(f"<b>{conv.get('call','')} {c['symbol']}</b>"
+                     + (f" \u00b7 {html.escape(sector)}" if sector else ""))
+            L.append(f"  \u20b9{c['close']:,.2f} \u00b7 RSI {c['rsi']:g}/100 \u00b7 "
+                     f"{c['mom_3m_pct']:+.0f}% 3m \u00b7 {c['mom_6m_pct']:+.0f}% 6m \u00b7 "
+                     f"{c['pos_52w_pct']:g}% of 1y range")
+            money = [f"stop \u20b9{c['suggested_stop']:,.2f}"]
             if f.get("pe"):
-                bits.append(f"PE {f['pe']:g}")
-            if f.get("industry"):
-                # "Oil & Gas Equipment & Services" — a bare & 400s the message.
-                # Cut on a word boundary so it doesn't end mid-syllable.
-                ind = f["industry"]
-                if len(ind) > 26:
-                    ind = ind[:26].rsplit(" ", 1)[0].rstrip(" &-,/") + "\u2026"
-                bits.append(html.escape(ind))
-            L.append(f"\u2192 <b>{c['symbol']}</b> \u2014 " + " \u00b7 ".join(bits))
+                money.append(f"PE {f['pe']:g}")
+            if f.get("debt_to_equity") is not None:
+                money.append(f"debt {f['debt_to_equity']:g}% of equity")
+            if f.get("earnings_growth") is not None:
+                money.append(f"earnings {f['earnings_growth']:+g}%")
+            L.append("  " + " \u00b7 ".join(money))
+            if conv.get("basis"):
+                L.append(f"  {html.escape(conv['basis'])}")
+            for neg in conv.get("negatives", []):
+                L.append(f"  \u2022 {html.escape(neg)}")
             if c.get("earnings_warning"):
-                L.append(f"   \u26A0\uFE0F {c['earnings_warning']}")
+                L.append(f"  \u26a0\ufe0f {html.escape(c['earnings_warning'])}")
+            L.append("")
 
-    # ---- IPOs ------------------------------------------------------------
+    # ---- IPOs: dates, board, band, demand — grouped by urgency -----------
     issues = (payload.get("ipo") or {}).get("issues") or []
     if issues:
-        # Ten rows of "WATCH  -  -" is noise that buries the two calls that
-        # matter. Anything with real data — a subscription book or a quoted GMP
-        # — goes in the table; the rest becomes a single line.
-        def has_data(i):
-            return bool((i.get("subscription") or {}).get("Total") or i.get("gmp"))
+        L += ["", "<b>\U0001F195 IPOs</b>"]
 
-        live = [i for i in issues if has_data(i)]
-        quiet = [i for i in issues if not has_data(i)]
-        # Open issues first: they have a deadline and real demand numbers.
-        live.sort(key=lambda i: (not (i.get("subscription") or {}).get("Total"),
-                                 -(i.get("gmp") or 0)))
-        if live:
-            rows = []
-            for i in live:
-                total = (i.get("subscription") or {}).get("Total")
-                rows.append([(i.get("verdict") or {}).get("call", "?"),
-                             _short(html.unescape(i["name"]), 14),
-                             f"\u20b9{i['gmp']:g}" if i.get("gmp") else "-",
-                             f"{total:g}x" if total else "-"])
-            L += ["", "<b>\U0001F195 IPOs</b>", _table(
-                ["CALL", "NAME", "GMP", "SUB"], rows, [5, 14, 5, 6])]
-            L.append("<i>SUB is exchange subscription \u2014 the number that matters. "
-                     "GMP is unofficial grey-market gossip.</i>")
-        if quiet:
-            names = ", ".join(html.escape(html.unescape(i["name"])) for i in quiet[:6])
-            L.append(f"<i>Not open yet, no demand data: {names}"
-                     f"{' and more' if len(quiet) > 6 else ''}.</i>")
+        def block(i):
+            o = i.get("official") or {}
+            subs = i.get("subscription") or {}
+            v = i.get("verdict") or {}
+            head = (f"<b>{v.get('call','WATCH')} \u00b7 {i['name']}</b> "
+                    f"({html.escape(i.get('board',''))})")
+            rows = [f"  {html.escape(i.get('price_band') or '-')} \u00b7 "
+                    f"{html.escape(i.get('dates',''))}"
+                    + (f" \u00b7 closes {o['closes']}" if o.get("closes") else "")]
+            if o.get("lot_size"):
+                rows[0] += f" \u00b7 lot {o['lot_size']}"
+            demand = []
+            if i.get("gmp") is not None:
+                demand.append(f"GMP \u20b9{i['gmp']:g} ({i.get('gmp_trend','')})")
+            if i.get("est_listing_gain_pct"):
+                demand.append(f"implies {i['est_listing_gain_pct']:+g}%")
+            if subs.get("Total"):
+                demand.append(f"subscribed {subs['Total']:g}x")
+            qib = subs.get("Qualified Institutional Buyers(QIBs)")
+            if qib is not None:
+                demand.append(f"QIB {qib:g}x" + (" \u26a0\ufe0f" if qib < 1 else ""))
+            ret = subs.get("Retail Individual Investors(RIIs)")
+            if ret is not None:
+                demand.append(f"retail {ret:g}x")
+            if demand:
+                rows.append("  " + " \u00b7 ".join(demand))
+            for r in v.get("reasons", [])[:2]:
+                rows.append(f"  \u2022 {html.escape(r)}")
+            return [head] + rows + [""]
 
-    # ---- earnings --------------------------------------------------------
+        urgent = [i for i in issues if i.get("deadline")]
+        rest = [i for i in issues if not i.get("deadline")]
+        if urgent:
+            for label in ("closes TODAY", "closes tomorrow"):
+                group = [i for i in urgent if i.get("deadline") == label]
+                if not group:
+                    continue
+                L += ["", f"\u23f0 <b>{label.upper()}</b> \u2014 "
+                          + ("last chance to apply" if "TODAY" in label.upper()
+                             else "final day tomorrow")]
+                for i in group:
+                    L += block(i)
+        for i in rest:
+            L += block(i)
+        L.append("<i>Subscription figures come from the exchange; QIB under 1x means "
+                 "institutions passed. GMP is an unofficial grey-market rumour.</i>")
+
     if payload.get("earnings_soon"):
-        L += ["", "<b>\u26A0\uFE0F Results due</b> \u00b7 "
-                  + ", ".join(f"{s} {d[5:]}" for s, d in payload["earnings_soon"].items())]
+        L += ["", "<b>\u26a0\ufe0f Results due</b> \u00b7 "
+                  + ", ".join(f"{s} {d}" for s, d in payload["earnings_soon"].items())]
 
-    # ---- news: collapsed, because it was 58% of the message --------------
     news = payload.get("news") or {}
     if news:
         items = [f"\u2022 <a href=\"{i['link']}\">{sym}: {i['title']}</a>"
-                 for sym, lst in news.items() for i in lst[:1]]
+                 for sym, lst in news.items() for i in lst[:2]]
         L += ["", "<b>\U0001F4F0 News</b>",
-              "<blockquote expandable>" + "\n".join(items[:8]) + "</blockquote>"]
+              "<blockquote expandable>" + "\n".join(items[:12]) + "</blockquote>"]
 
     L += ["", "<blockquote expandable><b>How to read this</b>\n"
-              "<b>BUY</b> trend and business check out \u00b7 <b>WATCH</b> mixed \u00b7 "
-              "<b>WAIT</b> results due \u00b7 <b>AVOID</b> too many negatives\n"
-              "<b>TRIM/EXIT</b> come with a share count.\n"
-              "<b>RSI</b> momentum 0-100; above 70 has run hot.\n"
-              "<b>PE</b> price \u00f7 yearly profit per share; higher means more growth "
-              "is already priced in.\n"
-              "<b>stop</b> where the idea has stopped working \u2014 from volatility "
-              "maths, not a forecast.\n"
-              "<b>GMP</b> unofficial pre-listing rumour price. Gossip, not "
-              "valuation.</blockquote>",
-          "<i>Screens, not advice.</i>"]
+              "<b>BUY ZONE</b> trend and business both check out \u00b7 <b>WATCH</b> mixed "
+              "\u00b7 <b>WAIT</b> results due within days \u00b7 <b>AVOID</b> too many "
+              "negatives\n"
+              "<b>HOLD / TRIM / EXIT</b> for what you own; TRIM and EXIT come with a "
+              "share count.\n"
+              "<b>RSI</b> momentum 0-100. Above 70 it has run hot; 50-60 is healthy.\n"
+              "<b>PE</b> price divided by yearly profit per share \u2014 higher means "
+              "more growth is already priced in, so less room for error.\n"
+              "<b>stop</b> the price at which the idea has stopped working. From how "
+              "much the stock normally swings, not a forecast.\n"
+              "<b>GMP</b> grey market premium \u2014 an unofficial pre-listing quote. "
+              "Gossip, not valuation.</blockquote>",
+          "<i>Screens, not advice. Verify before you trade.</i>"]
     return "\n".join(L)
 
 
 def _split(text: str, limit: int = TELEGRAM_LIMIT) -> list[str]:
-    """Split on blank lines, then hard-wrap anything still too long."""
-    chunks, current = [], ""
-    for block in text.split("\n\n"):
+    """Split into messages without ever cutting an HTML element in half.
+
+    The naive version broke on blank lines, which is fine until the brief grows
+    past one message and the boundary lands inside a <blockquote>. Telegram then
+    rejects both halves — one has an unclosed tag, the other an orphaned closing
+    tag — and the whole brief falls back to plain text.
+
+    Multi-line elements are therefore treated as indivisible.
+    """
+    ATOMIC = re.compile(r"(<blockquote[^>]*>.*?</blockquote>|<pre>.*?</pre>)", re.S)
+
+    blocks: list[str] = []
+    for chunk in ATOMIC.split(text):
+        if not chunk:
+            continue
+        if ATOMIC.fullmatch(chunk):
+            blocks.append(chunk)                 # never break this apart
+        else:
+            blocks.extend(chunk.split("\n\n"))
+
+    out: list[str] = []
+    current = ""
+    for block in blocks:
         candidate = f"{current}\n\n{block}" if current else block
         if len(candidate) <= limit:
             current = candidate
             continue
         if current:
-            chunks.append(current)
+            out.append(current)
+            current = ""
+        # A single block bigger than one message can only be sent by dropping
+        # its markup — better plain text than a rejected message.
         while len(block) > limit:
-            cut = block.rfind("\n", 0, limit)
+            flat = strip_html(block)
+            cut = flat.rfind("\n", 0, limit)
             cut = cut if cut > limit // 2 else limit
-            chunks.append(block[:cut])
-            block = block[cut:].lstrip("\n")
+            out.append(flat[:cut])
+            block = flat[cut:].lstrip("\n")
         current = block
     if current:
-        chunks.append(current)
-    return chunks
+        out.append(current)
+    return out
+
+
+def _tags_balanced(chunk: str) -> bool:
+    """Every message must stand alone as valid Telegram HTML."""
+    for tag in ("b", "i", "u", "s", "a", "code", "pre", "blockquote"):
+        if len(re.findall(rf"<{tag}[ >]", chunk)) != len(re.findall(rf"</{tag}>", chunk)):
+            return False
+    return True
 
 
 def strip_html(text: str) -> str:

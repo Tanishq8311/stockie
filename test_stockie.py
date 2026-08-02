@@ -139,6 +139,30 @@ def test_telegram_split_respects_limit():
     assert brief._split(text, limit=4096) == [text]
 
 
+def test_split_never_breaks_an_html_element():
+    """The production bug: at 14k chars the split landed inside a
+    <blockquote>, so Telegram rejected both halves — one with an unclosed tag,
+    one with an orphan."""
+    filler = "\n\n".join(f"<b>line {i}</b> " + "x" * 120 for i in range(40))
+    quote = "<blockquote expandable>" + "\n".join(f"item {i}" for i in range(30)) + "</blockquote>"
+    text = filler + "\n\n" + quote + "\n\n" + filler
+
+    parts = brief._split(text, limit=1500)
+    assert all(len(p) <= 1500 for p in parts), [len(p) for p in parts]
+    for i, p in enumerate(parts):
+        assert brief._tags_balanced(p), f"message {i} has unbalanced tags:\n{p[:200]}"
+    # the blockquote must survive intact in exactly one message
+    whole = [p for p in parts if "<blockquote" in p]
+    assert len(whole) == 1 and "</blockquote>" in whole[0]
+
+
+def test_split_flattens_a_block_too_big_to_send():
+    huge = "<blockquote expandable>" + ("y" * 9000) + "</blockquote>"
+    parts = brief._split(huge, limit=4096)
+    assert all(len(p) <= 4096 for p in parts)
+    assert all(brief._tags_balanced(p) for p in parts), "oversized block left broken tags"
+
+
 def test_html_safe_is_idempotent():
     # Feeds are inconsistent: some titles arrive escaped, some raw. Both must
     # land on the same safe output, and re-running must not double-escape.
@@ -442,7 +466,7 @@ def test_holdings_line_explains_why_it_says_sell():
                       }]},
     })
     assert "70% of your portfolio" in out, "the reason for selling is missing"
-    assert "leaves you 323 shares" in out, "should say what you are left with"
+    assert "leaves 323" in out, "should say what you are left with"
     assert "redeploy" in out, "the 25% target assumes proceeds are redeployed"
 
 
