@@ -107,7 +107,7 @@ data inverts the conclusion.
                           ──► NSE IPO data via the Worker's proxy
                           ──► brief + charts ──► Telegram
 
-any time   Telegram ──► Cloudflare Worker ──► /portfolio /ipo /chart /brief /status
+any time   Telegram ──► Cloudflare Worker ──► /portfolio /chart /ipo /login /status
 ```
 
 **Two constraints drove the whole design.**

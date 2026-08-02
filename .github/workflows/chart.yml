@@ -1,8 +1,12 @@
 name: On-demand chart
 
-# Answers /chart SYMBOL from Telegram. Separate from the brief on purpose: this
-# fetches one symbol and renders two images, so it finishes in about a minute
-# instead of the three-plus a full 2,400-symbol scan takes.
+# Chart images for one symbol, on demand: Actions -> On-demand chart ->
+# Run workflow.
+#
+# The Telegram /chart command answers with numbers straight from the Worker and
+# needs nothing set up. This exists for when you want the actual pictures — a
+# free Worker gets 10ms of CPU per request and rendering a PNG costs hundreds,
+# so image rendering has to happen somewhere with a real CPU budget.
 
 on:
   workflow_dispatch:

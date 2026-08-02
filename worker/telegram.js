@@ -3,11 +3,10 @@
 // The 08:00 brief is a push. This is the pull: ask the bot something and get an
 // answer in about a second.
 //
-// It lives in the Worker rather than in GitHub Actions because the Worker is
-// already awake, already holds today's Kite token, and can reach NSE. Routing a
-// question through Actions would mean a 2-4 minute wait for a spin-up. The
-// trade-off is that the Worker has no pandas, so anything needing RSI or moving
-// averages (charts, the scored ideas list) stays with the morning brief.
+// Everything here is answered by the Worker itself — no GitHub round trip and
+// no extra credentials. The one thing it cannot do is render images: a free
+// Worker gets 10ms of CPU per request and a matplotlib PNG costs hundreds, so
+// charts and the ranked ideas list stay with the 08:00 brief.
 //
 // SINGLE USER BY DESIGN. Every update is checked against TELEGRAM_CHAT_ID and
 // silently dropped otherwise: this exposes a real brokerage account, and Kite
@@ -145,31 +144,6 @@ async function cmdIpo(env) {
     + `The 08:00 brief adds exchange subscription figures and an apply/avoid call, which matter far more.</i>`;
 }
 
-// GitHub Actions is where pandas lives, so anything needing moving averages
-// gets dispatched there and answers in a couple of minutes. Needs a fine-grained
-// PAT with Actions: read+write on the repo, stored as GITHUB_TOKEN.
-async function dispatch(env, workflow, inputs = {}) {
-  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
-    return "That needs GITHUB_TOKEN and GITHUB_REPO set on the Worker — see SETUP.md.";
-  }
-  const res = await fetch(
-    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-        Accept: "application/vnd.github+json",
-        "User-Agent": "stockie-worker",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ ref: "main", inputs }),
-    },
-  );
-  if (res.status === 204) return null;          // queued; the run will message you
-  const detail = await res.text();
-  return `GitHub refused (${res.status}): ${esc(detail.slice(0, 200))}`;
-}
-
 // --- /chart, computed here rather than dispatched -------------------------
 // signals.py is the authoritative implementation. This is a deliberately small
 // re-statement of the same formulas so a question can be answered in a second
@@ -282,13 +256,6 @@ async function cmdChart(env, arg) {
     + ` ranked list come with the 08:00 brief.</i>`;
 }
 
-// A full brief scans 2,411 symbols and renders charts — impossible inside a
-// Worker's 10ms CPU budget, so this is the one command that must go to Actions.
-async function cmdBrief(env) {
-  const err = await dispatch(env, "brief.yml", {});
-  return err || "📊 Running the full brief — about three minutes.";
-}
-
 export async function handleTelegram(request, env, tradingDay) {
   // Telegram echoes this header back; without it anyone who guesses the URL
   // could drive the bot.
@@ -318,7 +285,6 @@ export async function handleTelegram(request, env, tradingDay) {
       case "/portfolio": reply = await cmdPortfolio(env, tradingDay); break;
       case "/ipo":       reply = await cmdIpo(env); break;
       case "/chart":     reply = await cmdChart(env, parts[1]); break;
-      case "/brief":     reply = await cmdBrief(env); break;
       default:
         reply = cmd.startsWith("/")
           ? `Don't know <code>${esc(cmd)}</code>. Try /help.`

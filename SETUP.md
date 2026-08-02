@@ -147,42 +147,14 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
        "allowed_updates":["message"]}'
 ```
 
+Need the full brief off-schedule? Use **Actions → Pre-market brief → Run workflow** on
+GitHub. It is rare enough that wiring a bot command to it was not worth an extra
+credential.
+
 **Single user by design.** Every update is checked against `TELEGRAM_CHAT_ID` and
 silently dropped otherwise — this exposes a live brokerage account, and Kite's free tier
 is single-user anyway. Requests without the secret header get a 403, so knowing the URL
 is not enough to drive the bot.
-
-### `/chart` and `/brief` — one extra credential
-
-`/portfolio`, `/ipo`, `/login` and `/status` are answered by the Worker itself in about a
-second. `/chart SYMBOL` and `/brief` cannot be: they need pandas to compute moving
-averages, and the Worker has no Python. Instead the Worker asks GitHub Actions to run the
-job, which means it needs permission to trigger a workflow in your repo.
-
-**1. Create a fine-grained token.** GitHub → Settings → Developer settings →
-[Fine-grained personal access tokens](https://github.com/settings/personal-access-tokens/new):
-
-| Field | Value | Why |
-|---|---|---|
-| Repository access | **Only select repositories** → your fork | A classic token would grant every repo you own; this one can touch nothing else |
-| Permissions | **Actions → Read and write** | The minimum that allows `workflow_dispatch`. Not contents, not secrets, not admin |
-| Expiration | 90 days is sensible | Short-lived by default; regenerate and re-upload when it lapses |
-
-**2. Load it into the Worker**, never into the repo — a token committed to git is a token
-leaked:
-
-```bash
-cd worker
-npx wrangler secret put GITHUB_TOKEN          # paste the token at the prompt
-printf 'YOUR_USERNAME/stockie' | npx wrangler secret put GITHUB_REPO
-npx wrangler deploy
-```
-
-The value goes in at the prompt rather than on the command line, so it never lands in your
-shell history.
-
-Without these two secrets the commands reply saying what's missing rather than failing
-silently — everything else keeps working.
 
 ---
 
