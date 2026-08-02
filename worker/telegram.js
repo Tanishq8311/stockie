@@ -153,9 +153,17 @@ async function cmdIpo(env) {
 // dispatches to Actions instead of being reimplemented here.
 async function dispatch(env, workflow, inputs = {}) {
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
-    return "Needs GITHUB_TOKEN and GITHUB_REPO on the Worker — see SETUP.md. "
-      + "Meanwhile you can run it from the GitHub app: Actions \u2192 Pre-market brief "
-      + "\u2192 Run workflow.";
+    // Say exactly what to do. "See SETUP.md" is useless when you are standing
+    // in Telegram at 9am wanting your holdings.
+    return "\u26A0\uFE0F <b>/brief needs a GitHub token.</b>\n\n"
+      + "<b>Right now, no setup:</b> open the GitHub app or site \u2192 your repo "
+      + "\u2192 Actions \u2192 Pre-market brief \u2192 Run workflow. Same report.\n\n"
+      + "<b>To make this button work (2 min, once):</b>\n"
+      + "1. github.com/settings/personal-access-tokens/new\n"
+      + "2. Repository access \u2192 Only select repositories \u2192 your fork\n"
+      + "3. Permissions \u2192 Actions \u2192 Read and write\n"
+      + "4. Generate, copy, then on your machine:\n"
+      + "<code>cd stockie/worker && npx wrangler secret put GITHUB_TOKEN</code>";
   }
   const res = await fetch(
     `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`,
