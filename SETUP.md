@@ -117,16 +117,19 @@ your holdings. Miss the tap and you still get everything else.
 The 08:00 brief is a push. This makes the bot answer questions too:
 
 ```
-/portfolio   your holdings now, with weights and P&L
-/ipo         open and upcoming IPOs
-/login       fresh Kite login link
-/status      is today's Kite token still valid
-/help        the list
+/portfolio      your holdings now, with weights and P&L
+/chart SYMBOL   instant read on any stock — trend, RSI, momentum, stop
+/ipo            open and upcoming IPOs
+/login          fresh Kite login link
+/status         is today's Kite token still valid
+/help           the list
 ```
 
-Replies come in about a second, because the Worker is already awake and already
-holds today's Kite token. Anything needing moving averages — charts, the scored
-ideas list — stays with the morning brief, since the Worker has no pandas.
+Replies come in about a second, because the Worker is already awake and already holds
+today's Kite token. `/chart` recomputes the moving averages, RSI and ATR stop directly in
+the Worker — cross-checked against `signals.py` on real symbols so the two agree to the
+paisa. Chart *images* still come from the 08:00 brief: rendering a PNG costs hundreds of
+milliseconds and a free Worker gets 10ms of CPU per request.
 
 Requires the Worker from step 4. Add three secrets to it and register the webhook:
 

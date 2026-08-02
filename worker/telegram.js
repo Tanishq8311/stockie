@@ -18,8 +18,7 @@ const KITE_API = "https://api.kite.trade";
 const HELP = `<b>Stockie commands</b>
 
 /portfolio — your holdings now, with weights and P&amp;L
-/chart SYMBOL — price chart + candles, e.g. /chart RELIANCE
-/brief — run the full brief now
+/chart SYMBOL — instant read on any stock, e.g. /chart RELIANCE
 /ipo — open and upcoming IPOs with the computed call
 /login — fresh Kite login link
 /status — is today's Kite token still valid
@@ -171,13 +170,120 @@ async function dispatch(env, workflow, inputs = {}) {
   return `GitHub refused (${res.status}): ${esc(detail.slice(0, 200))}`;
 }
 
+// --- /chart, computed here rather than dispatched -------------------------
+// signals.py is the authoritative implementation. This is a deliberately small
+// re-statement of the same formulas so a question can be answered in a second
+// without a GitHub round trip. Keep it to arithmetic that is easy to eyeball:
+// anything more (the scoring, the entry filters, the verdicts) stays in Python,
+// because two drifting copies of a decision rule is worse than a slow answer.
+function sma(values, n) {
+  if (values.length < n) return null;
+  const window = values.slice(-n);
+  return window.reduce((a, b) => a + b, 0) / n;
+}
+
+// Wilder's RSI — the same smoothing as pandas' ewm(alpha=1/period, adjust=False).
+function rsi(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) gain += d; else loss -= d;
+  }
+  gain /= period;
+  loss /= period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    gain = (gain * (period - 1) + Math.max(d, 0)) / period;
+    loss = (loss * (period - 1) + Math.max(-d, 0)) / period;
+  }
+  if (loss === 0) return gain === 0 ? 50 : 100;
+  return 100 - 100 / (1 + gain / loss);
+}
+
+function atr(highs, lows, closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  // pandas seeds the EWM with the first true range, which has no previous
+  // close and so is just high-low. Starting the loop at i=1 dropped that seed
+  // and drifted the stop by a few tenths of a rupee.
+  let v = highs[0] - lows[0];
+  for (let i = 1; i < closes.length; i++) {
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1]),
+    );
+    v = v === null ? tr : (v * (period - 1) + tr) / period;
+  }
+  return v;
+}
+
 async function cmdChart(env, arg) {
   const symbol = (arg || "").trim().toUpperCase().replace(/[^A-Z0-9&-]/g, "");
   if (!symbol) return "Give me a symbol — e.g. <code>/chart RELIANCE</code>";
-  const err = await dispatch(env, "chart.yml", { symbol });
-  return err || `📈 Charting <b>${esc(symbol)}</b> — about a minute.`;
+
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}.NS`
+    + `?range=1y&interval=1d`;
+  let res;
+  try {
+    res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+  } catch {
+    return "Couldn't reach the price source right now.";
+  }
+  if (!res.ok) return `No data for <b>${esc(symbol)}</b> — check the NSE symbol.`;
+
+  const r = (await res.json())?.chart?.result?.[0];
+  const q = r?.indicators?.quote?.[0];
+  if (!r || !q) return `No data for <b>${esc(symbol)}</b> — check the NSE symbol.`;
+
+  // Prefer adjusted closes so splits and bonuses don't fake a crash — this is
+  // what yfinance's auto_adjust gives the Python side.
+  const adj = r.indicators?.adjclose?.[0]?.adjclose;
+  const rows = [];
+  for (let i = 0; i < (r.timestamp || []).length; i++) {
+    const c = (adj?.[i] ?? q.close?.[i]);
+    if (c == null || q.high?.[i] == null || q.low?.[i] == null) continue;
+    rows.push({ h: q.high[i], l: q.low[i], c });
+  }
+  if (rows.length < 60) return `<b>${esc(symbol)}</b> has too little history to judge.`;
+
+  const closes = rows.map((x) => x.c);
+  const last = closes[closes.length - 1];
+  const s50 = sma(closes, 50);
+  const s200 = sma(closes, 200);
+  const r14 = rsi(closes);
+  const a14 = atr(rows.map((x) => x.h), rows.map((x) => x.l), closes);
+  const hi = Math.max(...closes), lo = Math.min(...closes);
+  // pandas does close.iloc[-63], i.e. closes[len-63]. Using len-1-63 reads one
+  // bar too early and shifted LODHA's 3-month move from +31% to +37%.
+  const pct = (n) => (closes.length > n ? (last / closes[closes.length - n] - 1) * 100 : null);
+  const m3 = pct(63), m6 = pct(126);
+  const n = (v, d = 2) => (v == null ? "—" : v.toFixed(d));
+
+  const trend = s200 == null ? "not enough history for a 200-day average"
+    : (s50 != null && last > s50 && s50 > s200) ? "above both its 50 and 200-day averages, so the uptrend is intact"
+    : last < s200 ? "below its 200-day average — the longer trend is broken"
+    : "between its 50 and 200-day averages";
+
+  const heat = r14 == null ? "" :
+    r14 >= 70 ? " It has run hot and buyers may be tiring."
+    : r14 <= 35 ? " It has been sold off hard."
+    : " Momentum is in a healthy middle range.";
+
+  return `<b>${esc(symbol)}</b> — ₹${n(last)}\n\n`
+    + `${trend}.${heat}\n\n`
+    + `RSI <b>${n(r14, 1)}</b> of 100 · `
+    + `${m3 == null ? "" : `${m3 >= 0 ? "+" : ""}${n(m3, 0)}% in 3 months · `}`
+    + `${m6 == null ? "" : `${m6 >= 0 ? "+" : ""}${n(m6, 0)}% in 6 months`}\n`
+    + `50-day avg ₹${n(s50)} · 200-day avg ₹${n(s200)}\n`
+    + `1-year range ₹${n(lo)}–₹${n(hi)} · now at ${n(((last - lo) / (hi - lo)) * 100, 0)}% of it\n`
+    + (a14 ? `Stop if buying: <b>₹${n(last - 2 * a14)}</b> (2× its typical daily swing)\n` : "")
+    + `\n<i>Quick look only — no scoring or buy/sell call. Charts and the full`
+    + ` ranked list come with the 08:00 brief.</i>`;
 }
 
+// A full brief scans 2,411 symbols and renders charts — impossible inside a
+// Worker's 10ms CPU budget, so this is the one command that must go to Actions.
 async function cmdBrief(env) {
   const err = await dispatch(env, "brief.yml", {});
   return err || "📊 Running the full brief — about three minutes.";
