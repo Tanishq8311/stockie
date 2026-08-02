@@ -112,6 +112,45 @@ your holdings. Miss the tap and you still get everything else.
 
 ---
 
+## Optional: interactive commands
+
+The 08:00 brief is a push. This makes the bot answer questions too:
+
+```
+/portfolio   your holdings now, with weights and P&L
+/ipo         open and upcoming IPOs
+/login       fresh Kite login link
+/status      is today's Kite token still valid
+/help        the list
+```
+
+Replies come in about a second, because the Worker is already awake and already
+holds today's Kite token. Anything needing moving averages — charts, the scored
+ideas list — stays with the morning brief, since the Worker has no pandas.
+
+Requires the Worker from step 4. Add three secrets to it and register the webhook:
+
+```bash
+cd worker
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_CHAT_ID
+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET   # any long random string
+npx wrangler deploy
+
+curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
+  -H 'content-type: application/json' \
+  -d '{"url":"https://<your-worker>.workers.dev/telegram",
+       "secret_token":"<TELEGRAM_WEBHOOK_SECRET>",
+       "allowed_updates":["message"]}'
+```
+
+**Single user by design.** Every update is checked against `TELEGRAM_CHAT_ID` and
+silently dropped otherwise — this exposes a live brokerage account, and Kite's free tier
+is single-user anyway. Requests without the secret header get a 403, so knowing the URL
+is not enough to drive the bot.
+
+---
+
 ## Optional: plain-English writing
 
 Without an LLM key the brief is fully deterministic — every call, share count, number and

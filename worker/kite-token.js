@@ -9,6 +9,8 @@
 //
 // Set your Kite app's redirect URL to https://<worker>/callback
 
+import { handleTelegram } from "./telegram.js";
+
 const DAY_SECONDS = 86400;
 
 // Kite invalidates its token every morning around 06:00-07:30 IST, so a
@@ -39,6 +41,14 @@ function page(title, body) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // --- Telegram commands ------------------------------------------------
+    // The interactive half: /portfolio, /ipo, /login, /status. Handled here
+    // rather than in Actions because the Worker is already awake and already
+    // holds today's Kite token — a round trip through CI would take minutes.
+    if (url.pathname === "/telegram" && request.method === "POST") {
+      return handleTelegram(request, env, tradingDay());
+    }
 
     // --- Kite redirects here after you log in -----------------------------
     if (url.pathname === "/callback") {
