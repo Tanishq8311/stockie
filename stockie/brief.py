@@ -349,7 +349,7 @@ def template(payload: dict) -> str:
                 # Cut on a word boundary so it doesn't end mid-syllable.
                 ind = f["industry"]
                 if len(ind) > 26:
-                    ind = ind[:26].rsplit(" ", 1)[0] + "\u2026"
+                    ind = ind[:26].rsplit(" ", 1)[0].rstrip(" &-,/") + "\u2026"
                 bits.append(html.escape(ind))
             L.append(f"\u2192 <b>{c['symbol']}</b> \u2014 " + " \u00b7 ".join(bits))
             if c.get("earnings_warning"):
@@ -358,18 +358,33 @@ def template(payload: dict) -> str:
     # ---- IPOs ------------------------------------------------------------
     issues = (payload.get("ipo") or {}).get("issues") or []
     if issues:
-        rows = []
-        for i in issues:
-            subs = i.get("subscription") or {}
-            total = subs.get("Total")
-            rows.append([(i.get("verdict") or {}).get("call", "?"),
-                         _short(html.unescape(i["name"]), 13),
-                         f"\u20b9{i['gmp']:g}" if i.get("gmp") else "-",
-                         f"{total:g}x" if total else "-"])
-        L += ["", "<b>\U0001F195 IPOs</b>", _table(
-            ["CALL", "NAME", "GMP", "SUB"], rows, [5, 13, 5, 5])]
-        L.append("<i>SUB is exchange subscription \u2014 the number that matters. "
-                 "GMP is unofficial grey-market gossip.</i>")
+        # Ten rows of "WATCH  -  -" is noise that buries the two calls that
+        # matter. Anything with real data — a subscription book or a quoted GMP
+        # — goes in the table; the rest becomes a single line.
+        def has_data(i):
+            return bool((i.get("subscription") or {}).get("Total") or i.get("gmp"))
+
+        live = [i for i in issues if has_data(i)]
+        quiet = [i for i in issues if not has_data(i)]
+        # Open issues first: they have a deadline and real demand numbers.
+        live.sort(key=lambda i: (not (i.get("subscription") or {}).get("Total"),
+                                 -(i.get("gmp") or 0)))
+        if live:
+            rows = []
+            for i in live:
+                total = (i.get("subscription") or {}).get("Total")
+                rows.append([(i.get("verdict") or {}).get("call", "?"),
+                             _short(html.unescape(i["name"]), 14),
+                             f"\u20b9{i['gmp']:g}" if i.get("gmp") else "-",
+                             f"{total:g}x" if total else "-"])
+            L += ["", "<b>\U0001F195 IPOs</b>", _table(
+                ["CALL", "NAME", "GMP", "SUB"], rows, [5, 14, 5, 6])]
+            L.append("<i>SUB is exchange subscription \u2014 the number that matters. "
+                     "GMP is unofficial grey-market gossip.</i>")
+        if quiet:
+            names = ", ".join(html.escape(html.unescape(i["name"])) for i in quiet[:6])
+            L.append(f"<i>Not open yet, no demand data: {names}"
+                     f"{' and more' if len(quiet) > 6 else ''}.</i>")
 
     # ---- earnings --------------------------------------------------------
     if payload.get("earnings_soon"):
