@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#152238"/>
+      <stop offset="1" stop-color="#0A0F1A"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- ascending candles: one red, two green -->
+  <g stroke-linecap="round">
+    <g stroke="#F05252" fill="#F05252">
+      <line x1="146" y1="286" x2="146" y2="378" stroke-width="14"/>
+      <rect x="118" y="304" width="56" height="58" rx="10"/>
+    </g>
+    <g stroke="#31C48D" fill="#31C48D">
+      <line x1="256" y1="206" x2="256" y2="340" stroke-width="14"/>
+      <rect x="228" y="228" width="56" height="94" rx="10"/>
+      <line x1="366" y1="124" x2="366" y2="284" stroke-width="14"/>
+      <rect x="338" y="146" width="56" height="118" rx="10"/>
+    </g>
+  </g>
+
+  <!-- baseline -->
+  <line x1="106" y1="416" x2="406" y2="416" stroke="#31C48D" stroke-width="12" stroke-linecap="round" opacity="0.55"/>
+</svg>

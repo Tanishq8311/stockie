@@ -293,6 +293,12 @@ async function cmdChart(env, arg) {
     : r14 <= 35 ? " It has been sold off hard."
     : " Momentum is in a healthy middle range.";
 
+  // Numbers land instantly; the pictures follow if a GitHub token is set. The
+  // Worker cannot render a PNG in 10ms of CPU, so the images come from Actions.
+  const chartsQueued = env.GITHUB_TOKEN && env.GITHUB_REPO
+    ? !(await dispatch(env, "chart.yml", { symbol }))
+    : false;
+
   return `<b>${esc(symbol)}</b> — ₹${n(last)}\n\n`
     + `${trend}.${heat}\n\n`
     + `RSI <b>${n(r14, 1)}</b> of 100 · `
@@ -301,8 +307,9 @@ async function cmdChart(env, arg) {
     + `50-day avg ₹${n(s50)} · 200-day avg ₹${n(s200)}\n`
     + `1-year range ₹${n(lo)}–₹${n(hi)} · now at ${n(((last - lo) / (hi - lo)) * 100, 0)}% of it\n`
     + (a14 ? `Stop if buying: <b>₹${n(last - 2 * a14)}</b> (2× its typical daily swing)\n` : "")
-    + `\n<i>Quick look only — no scoring or buy/sell call. Charts and the full`
-    + ` ranked list come with the 08:00 brief.</i>`;
+    + (chartsQueued
+        ? `\n<i>Charts rendering — about a minute.</i>`
+        : `\n<i>Quick look only. Charts come with the 08:00 brief.</i>`);
 }
 
 export async function handleTelegram(request, env, tradingDay) {

@@ -94,7 +94,26 @@ SYSTEM = textwrap.dedent("""
     - It is fine to be a little longer if it is genuinely clearer. Clarity beats
       brevity here; what you must cut is jargon, not explanation.
 
-    Structure, using Telegram HTML (<b>, <i>, <code>, <a href>) — never Markdown:
+    FORMAT. Telegram HTML only: <b> <i> <code> <a href> <pre> and
+    <blockquote expandable>. No Markdown, no <table> (Telegram has none).
+
+    - **Use a <pre> block wherever you are listing more than two comparable
+      things** — holdings, ideas, IPOs. Inside <pre> the font is fixed-width so
+      columns line up and it reads as a table. Pad with spaces to align.
+    - **A <pre> block never wraps — it scrolls sideways.** Keep every line under
+      34 characters or it is unreadable on a phone. Abbreviate ruthlessly:
+      "BUY" not "BUY ZONE", truncate long names with an ellipsis.
+    - **Escape `&`, `<` and `>` as &amp; &lt; &gt; everywhere**, inside <pre> too.
+      Industry names like "Oil & Gas Equipment & Services" contain a bare
+      ampersand, and one unescaped character makes Telegram reject the entire
+      message with a 400 — the brief simply never arrives.
+    - **Put the news list and the glossary inside <blockquote expandable>** so
+      they collapse. News links are enormous and were more than half the message.
+    - After a table, add prose ONLY for rows that need a decision. A HOLD needs
+      no explanation; a TRIM with a share count does. Never restate the table.
+    - Aim for something readable in about 30 seconds on a phone.
+
+    Structure:
 
     <b>📊 Market pulse</b>
     Where the market stands and what mood it is in, in 2-3 plain lines. Say what
@@ -234,117 +253,150 @@ def write(payload: dict) -> str:
     return proc.stdout.strip()
 
 
+def _row(cells, widths) -> str:
+    """One fixed-width row for a <pre> table."""
+    out = []
+    for value, w in zip(cells, widths):
+        s = str(value)
+        s = s[:w] if len(s) > w else s
+        out.append(s.rjust(w) if w < 0 else s.ljust(w))
+    return " ".join(out).rstrip()
+
+
+def _table(header, rows, widths) -> str:
+    """Telegram has no <table>. A <pre> block is fixed-width, so columns line
+    up — but it never wraps, it scrolls sideways. Keep the total under ~34
+    characters or it becomes unreadable on a phone."""
+    body = "\n".join([_row(header, widths)] + [_row(r, widths) for r in rows])
+    return f"<pre>{html.escape(body)}</pre>"
+
+
+def _short(sym: str, n: int = 10) -> str:
+    return sym if len(sym) <= n else sym[: n - 1] + "\u2026"
+
+
 def template(payload: dict) -> str:
-    """Deterministic fallback. Ugly but never wrong, and never silent."""
-    lines = [f"<b>📊 Stockie — {payload.get('date', '')}</b>", ""]
+    """Deterministic fallback. Tables for the scan, prose only where it earns
+    its place — the previous version buried three decisions in a wall of text."""
+    L = [f"<b>\U0001F4CA Stockie</b> \u00b7 {payload.get('date', '')}"]
 
-    for label, b in (payload.get("benchmarks") or {}).items():
-        lines.append(f"{label}: <b>{b['level']}</b> ({b['change_pct']:+.2f}%)")
+    bm = payload.get("benchmarks") or {}
+    if bm:
+        L += ["", _table(
+            ["", "LEVEL", "CHG"],
+            [[k.replace("India ", ""),
+              f"{v['level']:,.2f}" if v["level"] < 100 else f"{v['level']:,.0f}",
+              f"{v['change_pct']:+.2f}%"]
+             for k, v in bm.items()],
+            [10, 9, 7],
+        )]
 
+    # ---- portfolio -------------------------------------------------------
     port = payload.get("portfolio") or {}
     if port.get("holdings"):
         s = port.get("summary", {})
-        lines += ["", f"<b>💼 Portfolio</b> — value ₹{s.get('value', 0):,.0f} "
-                      f"({s.get('pnl_pct', 0):+.2f}%)"]
+        L += ["", f"<b>\U0001F4BC Portfolio</b> \u00b7 \u20b9{s.get('value',0):,.0f} "
+                  f"\u00b7 {s.get('pnl_pct',0):+.2f}%"]
+        rows, actions = [], []
         for h in port["holdings"]:
             rv = h.get("review") or {}
-            shares = rv.get("shares") or 0
-            howmuch = f" → sell {shares} of {h['qty']} ({rv.get('pct', 0):g}%)" if shares else ""
-            lines.append(
-                f"<b>{rv.get('call', 'HOLD')}</b> {h['symbol']} "
-                f"{h['pnl_pct']:+.1f}%{howmuch}"
-            )
-            # `action` is the reason for the call. Printing only `reasons` left
-            # a TRIM explained by "its price trend is not an exit signal", which
-            # says nothing about why to sell 583 shares.
-            if rv.get("action") and rv["action"] != "keep holding":
-                lines.append(f"   ↳ {rv['action']}")
-            if shares:
-                left = h["qty"] - shares
-                lines.append(
-                    f"   ↳ leaves you {left} shares (~₹{left * h['ltp']:,.0f}). "
-                    "Assumes you redeploy the proceeds; if you hold the cash, "
-                    "your remaining stake is a bigger share of a smaller pot."
-                )
-            for reason in (rv.get("reasons") or [])[:2]:
-                lines.append(f"   • {reason}")
+            rows.append([rv.get("call", "HOLD"), _short(h["symbol"]),
+                         (f"{rv.get('weight_pct', 0):.0f}%"
+                          if rv.get("weight_pct", 0) >= 1 else "<1%"),
+                         f"{h['pnl_pct']:+.1f}%"])
+            if rv.get("shares"):
+                # Say what you are LEFT with, and that the target only holds if
+                # the proceeds go back to work. Without that the share count
+                # looks more precise than it is.
+                left = h["qty"] - rv["shares"]
+                actions.append(
+                    f"\u2192 <b>{h['symbol']}</b> \u2014 sell <b>{rv['shares']}</b> of "
+                    f"{h['qty']}, leaves you {left} shares (~\u20b9{left * h['ltp']:,.0f})"
+                    f"\n   <i>{html.escape(rv.get('action',''))}. "
+                    f"Hits the target only if you redeploy the proceeds.</i>")
+        L += [_table(["CALL", "STOCK", "WT", "P&L"], rows, [5, 10, 4, 7])]
+        # Only positions needing action get prose. HOLD explains itself.
+        L += actions
+
     elif payload.get("portfolio_skipped"):
-        lines += ["", "<i>Portfolio skipped — no Kite login today. Tap /login, "
-                      "then send /brief to get this report with your holdings.</i>"]
+        L += ["", "<i>No Kite login today, so holdings are missing. Tap /login, "
+                  "then /brief for this report with them.</i>"]
 
-    if payload.get("candidates"):
-        lines += ["", "<b>🎯 Ideas today</b>"]
-        for c in payload["candidates"]:
-            f = c.get("fundamentals") or {}
-            extra = f" | PE {f['pe']}" if f.get("pe") else ""
+    # ---- ideas -----------------------------------------------------------
+    cands = payload.get("candidates") or []
+    if cands:
+        SHORT = {"BUY ZONE": "BUY", "WATCH": "WATCH", "WAIT": "WAIT", "AVOID": "AVOID"}
+        rows = [[SHORT.get((c.get("conviction") or {}).get("call", ""), "?"),
+                 _short(c["symbol"]), f"{c['close']:,.0f}", f"{c['rsi']:.0f}",
+                 f"{c['mom_3m_pct']:+.0f}%"] for c in cands]
+        L += ["", "<b>\U0001F3AF Ideas</b>", _table(
+            ["CALL", "STOCK", "PRICE", "RSI", "3M"], rows, [5, 10, 6, 3, 5])]
+        # Detail only for the ones actually worth acting on.
+        detailed = 0
+        for c in cands:
             conv = c.get("conviction") or {}
-            sector = f.get("industry") or f.get("sector") or ""
-            lines.append(
-                f"<b>{conv.get('call', '')}</b> {c['symbol']}"
-                + (f" <i>({sector})</i>" if sector else "")
-                + f" — ₹{c['close']} | up {c['mom_3m_pct']:+.0f}% in 3 months | "
-                f"RSI {c['rsi']} | stop ₹{c['suggested_stop']}{extra}"
-            )
-            # Without the LLM writing prose, the computed reason has to carry it.
-            if conv.get("basis"):
-                lines.append(f"   ↳ {conv['basis']}")
-            for neg in (conv.get("negatives") or [])[:2]:
-                lines.append(f"   • {neg}")
+            if conv.get("call") != "BUY ZONE" and not c.get("earnings_warning"):
+                continue
+            if detailed >= 3 and not c.get("earnings_warning"):
+                continue          # the table already carries the rest
+            detailed += 1
+            f = c.get("fundamentals") or {}
+            bits = [f"stop \u20b9{c['suggested_stop']:,.0f}"]
+            if f.get("pe"):
+                bits.append(f"PE {f['pe']:g}")
+            if f.get("industry"):
+                # "Oil & Gas Equipment & Services" — a bare & 400s the message.
+                # Cut on a word boundary so it doesn't end mid-syllable.
+                ind = f["industry"]
+                if len(ind) > 26:
+                    ind = ind[:26].rsplit(" ", 1)[0] + "\u2026"
+                bits.append(html.escape(ind))
+            L.append(f"\u2192 <b>{c['symbol']}</b> \u2014 " + " \u00b7 ".join(bits))
             if c.get("earnings_warning"):
-                lines.append(f"   ⚠️ {c['earnings_warning']}")
+                L.append(f"   \u26A0\uFE0F {c['earnings_warning']}")
 
-    if payload.get("news"):
-        lines += ["", "<b>📰 News</b>"]
-        for sym, items in payload["news"].items():
-            for it in items[:2]:
-                lines.append(f"<a href=\"{it['link']}\">{sym}: {it['title']}</a>")
-
+    # ---- IPOs ------------------------------------------------------------
     issues = (payload.get("ipo") or {}).get("issues") or []
     if issues:
-        lines += ["", "<b>🆕 IPOs</b>"]
+        rows = []
         for i in issues:
-            v = i.get("verdict") or {}
             subs = i.get("subscription") or {}
             total = subs.get("Total")
-            qib = subs.get("Qualified Institutional Buyers(QIBs)")
-            bits = [f"{i['board']}", f"band {i['price_band']}", f"{i['dates']}"]
-            if i.get("gmp") is not None:
-                bits.append(f"GMP ₹{i['gmp']:g} ({i.get('gmp_trend', '')})")
-            if total is not None:
-                bits.append(f"sub {total}x" + (f" / QIB {qib}x" if qib is not None else ""))
-            call = f"<b>{v.get('call', '?')}</b> " if v else ""
-            lines.append(f"{call}{i['name']} — " + " | ".join(bits))
-        lines.append("<i>GMP is an unofficial grey-market price, not a valuation.</i>")
+            rows.append([(i.get("verdict") or {}).get("call", "?"),
+                         _short(html.unescape(i["name"]), 13),
+                         f"\u20b9{i['gmp']:g}" if i.get("gmp") else "-",
+                         f"{total:g}x" if total else "-"])
+        L += ["", "<b>\U0001F195 IPOs</b>", _table(
+            ["CALL", "NAME", "GMP", "SUB"], rows, [5, 13, 5, 5])]
+        L.append("<i>SUB is exchange subscription \u2014 the number that matters. "
+                 "GMP is unofficial grey-market gossip.</i>")
 
+    # ---- earnings --------------------------------------------------------
     if payload.get("earnings_soon"):
-        lines += ["", "<b>⚠️ Earnings ahead</b>: " + ", ".join(
-            f"{s} {d}" for s, d in payload["earnings_soon"].items()
-        )]
+        L += ["", "<b>\u26A0\uFE0F Results due</b> \u00b7 "
+                  + ", ".join(f"{s} {d[5:]}" for s, d in payload["earnings_soon"].items())]
 
-    # The LLM normally explains each term in context. Without it, the brief has
-    # to explain itself, or a new investor cannot act on any of this.
-    lines += [
-        "",
-        "<b>ℹ️ How to read this</b>",
-        "<b>BUY ZONE</b> trend and business both check out · "
-        "<b>WATCH</b> mixed picture · "
-        "<b>WAIT</b> results due within days · "
-        "<b>AVOID</b> too many negatives",
-        "<b>HOLD / TRIM / EXIT</b> — what to do with something you already own. "
-        "TRIM and EXIT come with the number of shares to sell.",
-        "<b>RSI</b> — momentum from 0 to 100. Above 70 means it has run hot and "
-        "buyers may be tiring; around 50-60 is healthy.",
-        "<b>PE</b> — share price divided by yearly profit per share. Higher means "
-        "more future growth is already priced in, so there is less room for error.",
-        "<b>stop</b> — the price at which the idea has stopped working and you would "
-        "cut the loss. Calculated from how much the stock normally swings, not a forecast.",
-        "<b>GMP</b> — grey market premium. An unofficial price some dealers quote "
-        "before an IPO lists. Unregulated and easily manipulated: treat it as gossip, "
-        "not valuation. Subscription figures from the exchange matter far more.",
-        "",
-        "<i>Screens, not advice. Verify before you trade.</i>",
-    ]
-    return "\n".join(lines)
+    # ---- news: collapsed, because it was 58% of the message --------------
+    news = payload.get("news") or {}
+    if news:
+        items = [f"\u2022 <a href=\"{i['link']}\">{sym}: {i['title']}</a>"
+                 for sym, lst in news.items() for i in lst[:1]]
+        L += ["", "<b>\U0001F4F0 News</b>",
+              "<blockquote expandable>" + "\n".join(items[:8]) + "</blockquote>"]
+
+    L += ["", "<blockquote expandable><b>How to read this</b>\n"
+              "<b>BUY</b> trend and business check out \u00b7 <b>WATCH</b> mixed \u00b7 "
+              "<b>WAIT</b> results due \u00b7 <b>AVOID</b> too many negatives\n"
+              "<b>TRIM/EXIT</b> come with a share count.\n"
+              "<b>RSI</b> momentum 0-100; above 70 has run hot.\n"
+              "<b>PE</b> price \u00f7 yearly profit per share; higher means more growth "
+              "is already priced in.\n"
+              "<b>stop</b> where the idea has stopped working \u2014 from volatility "
+              "maths, not a forecast.\n"
+              "<b>GMP</b> unofficial pre-listing rumour price. Gossip, not "
+              "valuation.</blockquote>",
+          "<i>Screens, not advice.</i>"]
+    return "\n".join(L)
 
 
 def _split(text: str, limit: int = TELEGRAM_LIMIT) -> list[str]:
