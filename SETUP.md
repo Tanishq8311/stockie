@@ -147,6 +147,31 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
        "allowed_updates":["message"]}'
 ```
 
+### Make the commands discoverable
+
+Telegram only shows a command menu if you register one — otherwise users have to know
+what to type. This adds the blue **Menu** button and makes commands autocomplete as you
+type `/`:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setMyCommands" \
+  -H 'content-type: application/json' -d '{
+  "commands": [
+    {"command":"portfolio","description":"Your holdings — weights, P&L, concentration"},
+    {"command":"chart","description":"Read any stock, e.g. /chart RELIANCE"},
+    {"command":"ipo","description":"Open and upcoming IPOs with GMP"},
+    {"command":"status","description":"Is today'"'"'s Kite login still valid"},
+    {"command":"login","description":"Fresh Kite login link"},
+    {"command":"help","description":"What this bot can do"}
+  ]}'
+
+curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setChatMenuButton" \
+  -H 'content-type: application/json' -d '{"menu_button":{"type":"commands"}}'
+```
+
+Re-run it whenever you add a command. The menu can take a minute to appear, and the
+Telegram app sometimes needs the chat reopened before it shows.
+
 Need the full brief off-schedule? Use **Actions → Pre-market brief → Run workflow** on
 GitHub. It is rare enough that wiring a bot command to it was not worth an extra
 credential.
