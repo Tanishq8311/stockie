@@ -172,9 +172,39 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setChatMenuButton" \
 Re-run it whenever you add a command. The menu can take a minute to appear, and the
 Telegram app sometimes needs the chat reopened before it shows.
 
-Need the full brief off-schedule? Use **Actions → Pre-market brief → Run workflow** on
-GitHub. It is rare enough that wiring a bot command to it was not worth an extra
-credential.
+### `/brief` — the missed-tap recovery path
+
+Zerodha expires the Kite token every morning, so if you miss the 07:10 login link the
+08:00 brief goes out without your holdings. `/brief` is how you get the real report back:
+tap **/login**, then send **/brief**. It runs the identical workflow the cron runs, so you
+get the same report rather than a reconstruction.
+
+A full scan of 2,411 symbols cannot happen inside a Worker's 10ms CPU budget, so this one
+command asks GitHub Actions to do it — which needs permission to trigger a workflow.
+**It is the only command that needs a credential.**
+
+**1. Create a fine-grained token.** GitHub → Settings → Developer settings →
+[Fine-grained personal access tokens](https://github.com/settings/personal-access-tokens/new):
+
+| Field | Value | Why |
+|---|---|---|
+| Repository access | **Only select repositories** → your fork | A classic token grants every repo you own; this one can touch nothing else |
+| Permissions | **Actions → Read and write** | The minimum that allows `workflow_dispatch`. Not contents, not secrets, not admin |
+| Expiration | 90 days | Short-lived by default; regenerate and re-upload when it lapses |
+
+**2. Load it into the Worker**, never into the repo — a token committed to git is a token
+leaked:
+
+```bash
+cd worker
+npx wrangler secret put GITHUB_TOKEN          # paste at the prompt, not on the command line
+printf 'YOUR_USERNAME/stockie' | npx wrangler secret put GITHUB_REPO
+npx wrangler deploy
+```
+
+**Skipping this is fine.** Without the token `/brief` tells you to use
+**Actions → Pre-market brief → Run workflow**, which works from the GitHub mobile app and
+needs nothing set up — it is just two apps instead of one tap.
 
 **Single user by design.** Every update is checked against `TELEGRAM_CHAT_ID` and
 silently dropped otherwise — this exposes a live brokerage account, and Kite's free tier

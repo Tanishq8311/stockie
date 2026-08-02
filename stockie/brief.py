@@ -103,7 +103,11 @@ SYSTEM = textwrap.dedent("""
     names the scanner covered — that is plumbing, not news.
 
     <b>💼 Your portfolio</b>
-    One short paragraph per holding, anything to EXIT or TRIM first. For each:
+    If `portfolio_skipped` is true, say in one line that holdings are missing
+    because there was no Kite login today, and that tapping /login then sending
+    /brief will produce this same report with them. Then skip the rest of this
+    section. Otherwise: one short paragraph per holding, anything to EXIT or
+    TRIM first. For each:
 
     0. The computed call from `review.call` — HOLD, TRIM or EXIT — in bold and
        verbatim. It was calculated from the chart, the business fundamentals and
@@ -265,7 +269,8 @@ def template(payload: dict) -> str:
             for reason in (rv.get("reasons") or [])[:2]:
                 lines.append(f"   • {reason}")
     elif payload.get("portfolio_skipped"):
-        lines += ["", "<i>Portfolio skipped — no Kite login today.</i>"]
+        lines += ["", "<i>Portfolio skipped — no Kite login today. Tap /login, "
+                      "then send /brief to get this report with your holdings.</i>"]
 
     if payload.get("candidates"):
         lines += ["", "<b>🎯 Ideas today</b>"]

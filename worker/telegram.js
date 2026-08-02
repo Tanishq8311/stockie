@@ -18,6 +18,7 @@ const HELP = `<b>Stockie commands</b>
 
 /portfolio — your holdings now, with weights and P&amp;L
 /chart SYMBOL — instant read on any stock, e.g. /chart RELIANCE
+/brief — full report now, same as the 08:00 one
 /ipo — open and upcoming IPOs with the computed call
 /login — fresh Kite login link
 /status — is today's Kite token still valid
@@ -142,6 +143,46 @@ async function cmdIpo(env) {
   return `<b>🆕 IPOs</b>\n\n${lines.join("\n")}\n\n`
     + `<i>GMP is an unofficial grey-market quote — gossip, not valuation. `
     + `The 08:00 brief adds exchange subscription figures and an apply/avoid call, which matter far more.</i>`;
+}
+
+// --- /brief: the recovery path -------------------------------------------
+// Zerodha kills the API token every morning, so a missed tap means the 08:00
+// brief goes out without holdings. This is how you get the real thing back:
+// tap /login, then /brief. It runs the identical code the cron runs, so the
+// report is the same rather than a reconstruction — which is exactly why it
+// dispatches to Actions instead of being reimplemented here.
+async function dispatch(env, workflow, inputs = {}) {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+    return "Needs GITHUB_TOKEN and GITHUB_REPO on the Worker — see SETUP.md. "
+      + "Meanwhile you can run it from the GitHub app: Actions \u2192 Pre-market brief "
+      + "\u2192 Run workflow.";
+  }
+  const res = await fetch(
+    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "stockie-worker",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ ref: "main", inputs }),
+    },
+  );
+  if (res.status === 204) return null;
+  return `GitHub refused (${res.status}): ${esc((await res.text()).slice(0, 200))}`;
+}
+
+async function cmdBrief(env, tradingDay) {
+  const token = await todaysToken(env, tradingDay);
+  const err = await dispatch(env, "brief.yml", {});
+  if (err) return err;
+  return token
+    ? "\u{1F4CA} Running the full brief with your portfolio — about three minutes."
+    : "\u{1F4CA} Running the full brief — about three minutes.\n\n"
+      + "\u26A0\uFE0F You are not logged in to Kite today, so it will skip holdings. "
+      + "Tap /login first and re-send /brief if you want the portfolio section.";
 }
 
 // --- /chart, computed here rather than dispatched -------------------------
@@ -284,6 +325,7 @@ export async function handleTelegram(request, env, tradingDay) {
       case "/login":     reply = cmdLogin(env); break;
       case "/portfolio": reply = await cmdPortfolio(env, tradingDay); break;
       case "/ipo":       reply = await cmdIpo(env); break;
+      case "/brief":     reply = await cmdBrief(env, tradingDay); break;
       case "/chart":     reply = await cmdChart(env, parts[1]); break;
       default:
         reply = cmd.startsWith("/")

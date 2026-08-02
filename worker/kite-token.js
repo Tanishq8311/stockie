@@ -90,6 +90,22 @@ export default {
         }),
         { expirationTtl: DAY_SECONDS },
       );
+      // Nudge in Telegram too: if the 08:00 brief already went out without
+      // holdings, /brief is how you get the real one — otherwise the login
+      // succeeds silently and there is no sign that recovery is possible.
+      if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+        await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            chat_id: env.TELEGRAM_CHAT_ID,
+            parse_mode: "HTML",
+            text: "\u2705 <b>Kite login stored for today.</b>\n\n"
+              + "If today's brief already went out without your holdings, send "
+              + "/brief to get the full report with them.",
+          }),
+        }).catch(() => {});
+      }
       return page("Logged in ✅", "Stockie has your token for today. You can close this tab.");
     }
 
