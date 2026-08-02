@@ -2,9 +2,9 @@
 
 **A pre-market research analyst that runs itself, costs nothing, and shows its working.**
 
-Every weekday at 08:00 IST — 75 minutes before the NSE opens — Stockie screens all 2,411
-listed NSE symbols, reviews my Zerodha portfolio, tracks live IPO demand, and sends one
-plain-English brief to Telegram with charts attached.
+Every weekday at 08:00 IST — 75 minutes before the NSE opens — Stockie screens 2,411 NSE
+symbols, reviews my Zerodha portfolio, tracks live IPO demand, and sends one plain-English
+brief to Telegram with charts attached.
 
 No server. No laptop. No API bill.
 
@@ -125,6 +125,29 @@ doubles as a host-allowlisted NSE proxy. That one reuse is what turns IPO calls 
 
 **Stateless by design.** Every run pulls a fresh year of candles and throws it away. There
 is no database to maintain, migrate, or corrupt.
+
+### What the universe covers — and what it deliberately doesn't
+
+| Segment | Count | Scanned |
+|---|---:|---|
+| NSE main board, `EQ` series | 2,075 | ✅ |
+| NSE-listed ETFs | 336 | ✅ |
+| `BE` series — trade-to-trade / surveillance | 289 | ✗ |
+| `BZ` series — suspended | 25 | ✗ |
+| NSE Emerge (SME platform) | ~534 | ✗ |
+| BSE-only listings | ~5,200 | ✗ |
+
+NSE lists roughly 2,867 companies in total, so **2,411 is a deliberate subset, not the
+whole exchange.** `BE` and `BZ` are trade-to-trade and surveillance segments — no
+intraday, frequently illiquid, and flagged by the exchange for a reason; recommending an
+entry there would be irresponsible. NSE Emerge is the SME platform, where a typical name
+trades a small fraction of the ₹25cr liquidity floor and would be filtered out anyway.
+BSE-only names are overwhelmingly small and thinly traded, and Yahoo's coverage of them is
+patchy.
+
+In practice the liquidity gate makes the exclusions near-costless: of the 2,411 scanned,
+only **472 clear ₹25cr of median daily turnover**. Almost everything omitted would have
+been dropped at that gate regardless.
 
 ---
 
